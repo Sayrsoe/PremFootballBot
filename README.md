@@ -1,6 +1,7 @@
 # PremFootballBot
 
-Phase 1A is an offline Python library for exact Asian handicap settlement.
+This offline Python library provides exact Asian handicap settlement (Phase 1A)
+and fixed-rate independent-Poisson probabilities (Phase 1B).
 It accepts **full-time regulation goals including stoppage time**, excluding
 extra time and penalties. All examples and tests use fabricated results.
 
@@ -92,3 +93,78 @@ database, frontend or betting recommendations.
 
 See [the implementation handoff](handoffs/CODEX_PHASE1A_IMPLEMENTATION_REPORT.md)
 for decisions, source references, executed checks and integration notes.
+
+## Phase 1B: hypothetical Poisson probabilities
+
+Supply expected-goal rates yourself; this baseline does not estimate team
+strength or claim real-match accuracy. The independence assumption and any
+supplied rates require later empirical evaluation.
+
+```python
+from premfootballbot import poisson_distribution
+
+# Hypothetical rates, not an EPL forecast.
+model = poisson_distribution(1.4, 1.1)
+match = model.one_x_two()
+home_plus_quarter = model.asian_handicap("home", handicap_q=1)
+
+print(model.home_cap, model.away_cap)  # 14, 13 (inclusive)
+print(match.home_win, match.draw, match.away_win)
+# Approximately 0.438042706888, 0.266344854275, 0.295612438789
+print(home_plus_quarter.fw, home_plus_quarter.hw, home_plus_quarter.push,
+      home_plus_quarter.hl, home_plus_quarter.fl)
+# Approximately 0.438042706888, 0.266344854275, 0, 0, 0.295612438789
+print(model.mass.retained_mass)       # Approximately 0.999999999952226
+print(model.mass.omitted_mass)        # Approximately 4.77739868416e-11
+print(model.mass.omitted_mass_bound)  # Approximately 4.77969999977e-11
+print(model.score_probability(1, 1))  # Approximately 0.126410897881
+assert model.score_probability(100, 100) is None
+
+# Reuse the same cached distribution for another selected-side line.
+away_minus_half = model.asian_handicap("away", handicap_q=-2)
+```
+
+- `poisson_distribution(lambda_home, lambda_away, *, tolerance=1e-10,
+  max_goals=512)` chooses separate caps using positive upper-tail bounds.
+  Joint rates must be finite `numbers.Real` values in [0, 100]; bool, text
+  and Decimal inputs are rejected. Zero is exact. Tolerance must be finite
+  and strictly between 0 and 1; the inclusive integer cap must be in [0, 512].
+  `GoalCapError` means the target cannot be established within that cap.
+- `truncated_poisson_distribution(lambda_home, lambda_away, *,
+  home_cap, away_cap)` uses explicit caps with no tolerance promise.
+  For example, caps (0, 0) at rates (1.4, 1.1) retain only
+  `exp(-2.5)`, approximately 0.082085, exposing substantial omitted mass.
+- `poisson_pmf(goals, rate)` is a scalar log-space PMF; goals are
+  nonnegative integers, excluding bool. It supports the rate-800 mode stress
+  check. Very large scalar arguments remain limited by floating-point
+  arithmetic and are not a general arbitrary-precision calculation.
+- Frozen `PoissonDistribution` holds tuple marginals and a cached
+  `difference_pmf` ordered from `-away_cap` through `home_cap`.
+  Each cell is the raw product of its marginal masses. Above-cap score
+  queries return `None`: those scores belong to omitted mass.
+- `one_x_two()` returns frozen H/D/A fields; `asian_handicap(side, q)`
+  returns frozen `fw, hw, push, hl, fl` fields. They share `mass` metadata.
+  Handicap signs, validation and classifications come from Phase 1A.
+  Outcome fields are probabilities of events, not fractional stake returns.
+- No cell or outcome probability is renormalized. Outcome totals equal
+  retained mass within floating-point roundoff.
+  `MassSummary` reports `retained_mass`, `omitted_mass`,
+  `omitted_mass_bound` and `mass_roundoff`.
+  Omitted mass is calculated from positive tail terms: mathematically 1-M,
+  but it remains positive when M rounds to 1.0. The geometric upper bound
+  includes a floating-point margin; it is not an interval-arithmetic proof.
+  `mass_roundoff` exposes the raw difference sum minus the retained CDF
+  product, rather than correcting probabilities.
+
+The joint rate limit and maximum caps bound work to at most 513 squared
+products; scalar rate 800 is tested separately. The default target controls
+truncation, not parameter uncertainty or prediction accuracy.
+
+The complete suite now has 180 tests: the unchanged 68 Phase 1A tests,
+24 independent 1X2 rows, 49 independent AH rows, and 39 numerical/integration
+tests. The new fixture CSV bytes are preserved under `tests/fixtures/`.
+Both adaptive and supplied fixed-cap results are checked against every row
+at absolute tolerance 1e-9.
+
+See [the Phase 1B implementation report](handoffs/CODEX_PHASE1B_IMPLEMENTATION_REPORT.md)
+for research, licensing, numerical design, executed checks and limitations.
