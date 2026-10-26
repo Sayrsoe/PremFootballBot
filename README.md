@@ -160,7 +160,7 @@ The joint rate limit and maximum caps bound work to at most 513 squared
 products; scalar rate 800 is tested separately. The default target controls
 truncation, not parameter uncertainty or prediction accuracy.
 
-The complete suite now has 180 tests: the unchanged 68 Phase 1A tests,
+The Phase 1A/1B suite has 180 tests: the unchanged 68 Phase 1A tests,
 24 independent 1X2 rows, 49 independent AH rows, and 39 numerical/integration
 tests. The new fixture CSV bytes are preserved under `tests/fixtures/`.
 Both adaptive and supplied fixed-cap results are checked against every row
@@ -168,3 +168,88 @@ at absolute tolerance 1e-9.
 
 See [the Phase 1B implementation report](handoffs/CODEX_PHASE1B_IMPLEMENTATION_REPORT.md)
 for research, licensing, numerical design, executed checks and limitations.
+
+## Phase 2A-Offline: synthetic observation records
+
+The `premfootballbot.match_data` module is an offline, version-1 synthetic
+JSON importer. It validates records and preserves observation histories.
+It does not obtain EPL data or fit a model. Its API is separate from the
+existing settlement and probability functions.
+
+```python
+from datetime import datetime, timezone
+from pathlib import Path
+from premfootballbot.match_data import (
+    parse_synthetic_json, select_as_of, summarize_coverage, snapshot_manifest,
+)
+
+data = Path("tests/fixtures/phase2a_synthetic_v1.json").read_bytes()
+batch = parse_synthetic_json(data).require_valid()
+old = select_as_of(batch, datetime(2026, 8, 2, tzinfo=timezone.utc))
+corrected = select_as_of(batch, datetime(2026, 8, 4, tzinfo=timezone.utc))
+assert [(r.revision, r.home_goals_90) for r in old.observations] == [(1, 0)]
+assert [(r.revision, r.home_goals_90) for r in corrected.observations] == [(2, 1)]
+
+print(batch.content_sha256)
+# 81fc7eb53c76c3693c77ba533b6c55c4a036c724a8f3f25c60e878ce28bfa2aa
+print(summarize_coverage(batch, expected_matches={2026: 380})[0].fixture_count)
+# 4; the expected count is explicitly hypothetical, not a source inventory.
+manifest = snapshot_manifest(batch)
+assert not select_as_of(
+    batch, datetime(2027, 1, 1, tzinfo=timezone.utc), include_synthetic=False
+).observations
+```
+
+Input must be UTF8 bytes with exactly these envelope fields:
+`schema_version=1`, `namespace`, `teams`, `source_documents`, `records`.
+The committed [synthetic JSON example](tests/fixtures/phase2a_synthetic_v1.json)
+is the complete executable schema example. Team IDs/aliases are explicit;
+each source document embeds invented text, its verified SHA256, a terms ID,
+a licence state and `is_synthetic=true`. Every observation must match its
+registered provenance. Only `synthetic:<slug>` namespaces are supported.
+Unknown fields and duplicate JSON keys fail; no fuzzy identity matching.
+
+- `parse_synthetic_json(data: bytes) -> ImportResult` returns frozen tuples
+  of observations, teams, documents and structured issues. Any error rejects
+  the entire batch. Inspect `errors`/`warnings` or call `require_valid()`
+  to raise `MatchDataError`. Input is bounded to 4 MiB and 10,000 records.
+- Revisions start at zero and are consecutive, with explicit
+  `supersedes_revision` links and stable fixture/source/team/season identity.
+  Known availability must increase strictly. Identical duplicates collapse;
+  only retrieval stamps may differ, retaining the earliest. Content conflicts
+  fail. A replay with different identity needs a new fixture.
+- `select_as_of(batch, cutoff_utc, *, include_synthetic=True)` returns only
+  eligible FT90 results with availability **strictly before** the aware
+  cutoff. It chooses the latest observed revision before applying status,
+  precision and licence gates. An observed withdrawal cannot resurrect an
+  older score. A higher revision with unknown availability quarantines the
+  older result; a known later successor can resolve that uncertainty.
+- Exact timestamps require explicit offsets and normalize to UTC. Date-only
+  or unknown kickoffs stay coarse; null availability stays unknown.
+  Retrieval time never substitutes for publication. Kickoff+90 minutes is
+  only a result-availability lower bound. Fixture announcements may occur
+  after kickoff. Only FINISHED result/FT90 records carry integer goals;
+  awarded, abandoned and unplayed observations have null scores/basis.
+- `canonical_content(batch)` returns sorted normalized UTF8 bytes for
+  SHA256 hashing, excluding retrieval timestamps. It is a hash representation,
+  not an input document. `snapshot_manifest(batch)` keeps retrieval stamps
+  and verified source-document digests separately. No clock is consulted.
+- `summarize_coverage(batch, *, expected_matches=None)` counts distinct
+  latest-present fixtures separately from revisions and reports statuses,
+  missing availability, coarse kickoffs and separate fixture/result
+  completeness against optional explicit expectations. It is not a historical
+  training selection and does not assume every season has 380 matches.
+
+The full suite has 248 tests: the unchanged 180 Phase 1A/1B tests plus 53
+validation/determinism tests and 15 independent leakage scenario tests.
+Run `python -B -m unittest discover -s tests -v`.
+
+This importer cannot verify a fabricated label's real-world truth or establish
+provider rights. It verifies the declared embedded document's checksum, not
+that every observation is independently supported by that text. Histories
+are immutable within a parsed batch; compare hashes/manifests to audit changes
+between snapshots. Real data, provider adapters, training, odds and subsequent
+phases require separate scope and review.
+
+See [the Phase 2A implementation report](handoffs/CODEX_PHASE2A_IMPLEMENTATION_REPORT.md)
+for the exact contract decisions, research, executed checks and limitations.
