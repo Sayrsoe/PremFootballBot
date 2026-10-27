@@ -240,7 +240,7 @@ Unknown fields and duplicate JSON keys fail; no fuzzy identity matching.
   completeness against optional explicit expectations. It is not a historical
   training selection and does not assume every season has 380 matches.
 
-The full suite has 248 tests: the unchanged 180 Phase 1A/1B tests plus 53
+The Phase 1A/1B/2A suite has 248 tests: the unchanged 180 Phase 1A/1B tests plus 53
 validation/determinism tests and 15 independent leakage scenario tests.
 Run `python -B -m unittest discover -s tests -v`.
 
@@ -253,3 +253,83 @@ phases require separate scope and review.
 
 See [the Phase 2A implementation report](handoffs/CODEX_PHASE2A_IMPLEMENTATION_REPORT.md)
 for the exact contract decisions, research, executed checks and limitations.
+
+## Phase 2B: synthetic-only expected-goals estimation
+
+`premfootballbot.expected_goals` fits a small ridge-penalized independent
+Poisson model from the synthetic observations validated by Phase 2A. It also
+provides an explicitly approximate Gamma-Poisson rate-ratio comparison.
+These are engineering examples, not evidence of real EPL forecast skill.
+
+```python
+from datetime import datetime, timezone
+from pathlib import Path
+from premfootballbot.match_data import parse_synthetic_json
+from premfootballbot.expected_goals import fit_expected_goals, predict_expected_goals
+
+batch = parse_synthetic_json(
+    Path("tests/fixtures/phase2b_synthetic_v1.json").read_bytes()
+).require_valid()
+cutoff = datetime(2026, 9, 1, tzinfo=timezone.utc)
+model = fit_expected_goals(batch, cutoff)
+forecast = predict_expected_goals(
+    model,
+    target_fixture_id="synthetic:phase2b:fixture:example",
+    home_team_id="synthetic:phase2b:team:a",
+    away_team_id="synthetic:phase2b:team:c",
+    target_kickoff_utc=datetime(2026, 9, 2, tzinfo=timezone.utc),
+    cutoff_utc=cutoff,
+)
+print(forecast.lambda_home, forecast.lambda_away)
+# Approximately 2.5038009008083715, 0.4101151462906368
+probabilities = forecast.probabilities()  # unchanged Phase 1B engine
+print(probabilities.one_x_two())
+assert "TARGET_METADATA_UNVERIFIED" in forecast.warnings
+```
+
+- Direct import preserves existing package exports. `fit_expected_goals(batch,
+  cutoff_utc, *, config=ModelConfig())` and `fit_rate_ratio(...)` revalidate one
+  synthetic batch through Phase 2A, select strictly available results, and
+  retain selected rows, hashes, exclusions, team counts and exact rank.
+- The main model uses `eta_H=mu+h+a_home-d_away` and
+  `eta_A=mu+a_away-d_home`, with unpenalized mu/h and positive attack/defense
+  ridge. Higher defense reduces opponents' rates; home advantage can be
+  negative. The objective includes the Poisson factorial constants.
+- `ModelConfig` defaults: tau=4, kappa=4, g_max=20, n_min=6, at most
+  100 Newton iterations, gradient tolerance 1e-8 and decrement tolerance
+  1e-12, both scaled by total goals. These are provisional synthetic settings.
+  Config/type, empty selection, zero-goal aggregate sides and oversized scores
+  raise `ExpectedGoalsError` with a machine-readable `code`.
+- Identifiability uses exact rational rank of the full integer design.
+  The two prediction rate rows are each checked against its cached row span.
+  Graph components alone cannot establish identification: even reversing a
+  previously observed pairing can be unsupported.
+- Unsupported/unknown/cross-component predictions fail by default.
+  `allow_unidentified=True` explicitly permits prior-driven ridge values
+  (zero unknown-team attack/defense). Alternatively `fallback="league"`
+  uses the empirical home/away averages for both rates, or supply a
+  `FittedRateRatio` from the same batch/rows/cutoff. These forecasts are
+  labelled by method and `prior_driven`; there is no automatic fallback after
+  an optimization or rate error. The comparison does not adjust for opponents.
+- Fitting and prediction cutoffs must be exact aware UTC values, with the
+  prediction cutoff equal to the fit cutoff and strictly before target kickoff.
+  Target fixture IDs must be absent from training. Target identity/kickoff are
+  caller-supplied: historical result selection cannot authenticate them.
+- Returned rates must be finite, strictly positive and <=100, without clipping.
+  Rates outside the provisional [0.05,8] band emit warnings.
+  Fitting also rejects log rates outside [-700,700] for arithmetic safety.
+  Dense fitting is limited to 40 participating teams (82 parameters);
+  unused registered teams do not become parameters.
+- Frozen diagnostics expose NLL/objective, gradient norm, Newton decrement,
+  iterations, backtracks, objective trace, Cholesky pivots and post-fit
+  goal-total/gauge checks. Pivots are numerical proxies, not a condition
+  number or forecast confidence interval. No empirical uncertainty or
+  guaranteed global Newton convergence is claimed.
+
+The complete suite has 306 tests, including all unchanged 248 earlier tests,
+38 new math/optimizer/forecast tests and 20 new leakage tests. Run
+`python -B -m unittest discover -s tests -v`. Independent hand-worked and
+60-digit Decimal references, derivative checks and exact-rank counterexamples
+are described in [the Phase 2B report](handoffs/CODEX_PHASE2B_IMPLEMENTATION_REPORT.md).
+
+No real data, provider integration, odds, tuning, Phase 3 or merge is included.
