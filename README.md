@@ -326,10 +326,102 @@ assert "TARGET_METADATA_UNVERIFIED" in forecast.warnings
   number or forecast confidence interval. No empirical uncertainty or
   guaranteed global Newton convergence is claimed.
 
-The complete suite has 306 tests, including all unchanged 248 earlier tests,
+The Phase 1A/1B/2A/2B suite has 306 tests, including all unchanged 248 earlier tests,
 38 new math/optimizer/forecast tests and 20 new leakage tests. Run
 `python -B -m unittest discover -s tests -v`. Independent hand-worked and
 60-digit Decimal references, derivative checks and exact-rank counterexamples
 are described in [the Phase 2B report](handoffs/CODEX_PHASE2B_IMPLEMENTATION_REPORT.md).
 
 No real data, provider integration, odds, tuning, Phase 3 or merge is included.
+
+## Phase 3A: synthetic walk-forward evaluation
+
+**SYNTHETIC DEMONSTRATION ONLY — NO REAL EPL ACCURACY OR BETTING PROFIT CLAIMS.**
+
+The new `premfootballbot.backtesting` module separates predeclared targets,
+forecast generation, later label selection and scoring. It does not fetch
+football data or run paid services. The observation and target JSON files below
+are independently invented test inputs.
+
+```python
+from datetime import datetime, timezone
+from pathlib import Path
+from premfootballbot.match_data import parse_synthetic_json
+from premfootballbot.backtesting import (
+    parse_target_manifest, generate_forecasts, select_labels,
+    evaluate_forecasts, snapshot_json,
+)
+
+fixtures = Path("tests/fixtures")
+batch = parse_synthetic_json(
+    (fixtures / "phase3a_synthetic_v1.json").read_bytes()
+).require_valid()
+manifest = parse_target_manifest(
+    (fixtures / "phase3a_synthetic_targets_v1.json").read_bytes()
+)
+forecasts = generate_forecasts(batch, manifest)  # no target ground truth
+labels = select_labels(
+    batch, forecasts,
+    evaluation_cutoff_utc=datetime(2027, 8, 1, tzinfo=timezone.utc),
+)
+report = evaluate_forecasts(forecasts, labels)  # never refits
+print(report.banner)
+print(report.manifest_n, len(report.paired_ids))  # 13 targets, paired N=5
+canonical_report = snapshot_json(report)  # finite sorted JSON with verified SHA256
+```
+
+- `parse_target_manifest(bytes) -> TargetManifest` accepts a strict version1
+  synthetic namespace/team registry and targets with canonical IDs,
+  competition, season, intended kickoff, prediction cutoff and declaration
+  timestamp. Require `declared_at < cutoff < kickoff`; known offsets normalize
+  to UTC. Unknown fields (including scores), duplicate IDs, date-only/naive
+  times, self-matches and unknown teams are rejected.
+- `generate_forecasts(batch, manifest, *, config=BacktestConfig())` orders
+  origins by cutoff and fixture ID. It selects history using the unchanged
+  Phase 2A API, then gives each fitter a valid batch containing only complete
+  historical revision prefixes. No current target result enters a fit.
+  Forecast batch hashes describe these origin projections, not future labels.
+- Three fixed methods: existing ridge Poisson, existing approximate rate-ratio,
+  and a league benchmark using prior home/away averages. All enforce the same
+  exact pair-support policy. Cold starts, disconnected/unidentified pairs,
+  empty/degenerate histories and numerical failures produce reason-coded
+  abstentions. No fallback or `allow_unidentified=True` is enabled.
+- `select_labels(batch, forecasts, *, evaluation_cutoff_utc)` is a separate
+  frozen later snapshot. It joins exact fixture IDs, requires matching
+  identity/season/kickoff and eligible later FT90 availability, and preserves
+  strict revision/no-fallback rules. Rescheduled final kickoffs are excluded
+  rather than retrofitted into forecasts.
+- `evaluate_forecasts(forecasts, labels)` reports full-universe coverage,
+  abstentions, label exclusions and scoring errors. Comparative means,
+  per-season results and calibration use the same explicit intersection
+  of scored targets across all three methods. Individual unpaired counts and
+  means remain separately labelled. Fixed uniform bins include empty bins;
+  N<20 is marked `INSUFFICIENT_EVIDENCE`, with no uncertainty estimate.
+- Primary score is natural-log loss; Brier sums all three squared errors
+  (range0..2), and RPS uses ordered A<D<H and two cumulative boundaries,
+  without dividing by2. `score_1x2(ProbabilityMass, "H"|"D"|"A")` has
+  independent handwritten test oracles. Zero observed mass raises a typed
+  error; no clipping.
+- Raw Poisson masses are never renormalized. The omitted bound must meet
+  default1e-10 (or a stricter configured target); insufficient caps abstain.
+  Scores are labelled controlled approximations. Each score also records a
+  truncation-only log-loss bound `log1p(B/p_observed)`: a small absolute tail
+  does not guarantee a small relative log-loss error. Floating-point error
+  is separate from this bound.
+- Snapshots/config/results are frozen and hashed; forecast snapshots contain
+  no label, actual class, final goals or goal difference. Digests detect
+  content changes, not authenticated source truth. Synthetic declarations
+  and unknown-revision quarantines are not evidence of real historical
+  publication times.
+
+The fixture demonstrates13 targets,8 forecasts and5 abstentions per method,
+7 eligible labels,3 unavailable/ineligible labels among each method's forecasts,
+and paired N=5 across2026/2027 synthetic seasons. No method winner is claimed.
+
+Run `python -m unittest discover -s tests -v`.
+The complete suite has363 tests:306 earlier tests unchanged,
+34 new scoring/manifest/report tests and23 new leakage tests.
+See [the Phase 3A implementation report](handoffs/CODEX_PHASE3A_IMPLEMENTATION_REPORT.md)
+for research, signatures, policies, exact evidence and review guidance.
+Optional exact-score and AH diagnostics are deferred. Budget: ฿0; no real
+data, paid services, Phase3B/3C/3D or merge.
