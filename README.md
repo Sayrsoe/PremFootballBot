@@ -425,3 +425,76 @@ See [the Phase 3A implementation report](handoffs/CODEX_PHASE3A_IMPLEMENTATION_R
 for research, signatures, policies, exact evidence and review guidance.
 Optional exact-score and AH diagnostics are deferred. Budget: ฿0; no real
 data, paid services, Phase3B/3C/3D or merge.
+
+
+## Phase 3B Scope A: isolated OpenFootball archive exploration
+
+**EXPLORATORY ONLY / NO POINT-IN-TIME CERTIFICATION.** The independent
+`premfootballbot.openfootball_exploratory` module parses caller-supplied pinned
+OpenFootball England CC0 archive bytes. It preserves real archive labels and
+cannot feed the existing synthetic-only training or backtesting APIs.
+
+The supported inspected profiles are `2023-24/1-premierleague.txt` and
+`2025-26/1-premierleague.txt`, with explicit raw team-label lists. Other seasons,
+competitions, unknown teams and unsupported layouts need separate review.
+No downloader, scraper, network call, credentials or new dependencies are added.
+
+```python
+from datetime import date, datetime, timezone
+from pathlib import Path
+from premfootballbot.openfootball_exploratory import (
+    OpenFootballSource, parse_openfootball_epl,
+    summarize_exploratory_coverage, select_exploratory_prior_dates,
+    exploratory_json,
+)
+
+# Caller has already obtained and independently verified this exact pinned file.
+# The supplied retrieval time must be your actual recorded acquisition time.
+raw = Path("/your/local/archive/2023-24/1-premierleague.txt").read_bytes()
+recorded_retrieval_utc = ...  # replace with your recorded aware datetime
+source = OpenFootballSource(
+    repository_url="https://github.com/openfootball/england",
+    repository_commit_sha="9ee7a0c351805c99cc334478a9bf04b7d0432fec",
+    path="2023-24/1-premierleague.txt",
+    expected_git_blob_sha="23cdd8a340b72f6f30c514fbf609d5cf252723aa",
+    expected_sha256="0bfb4a7fffe0b1bf7318955686eafeb28fc9676346ae433259e7409d69551450",
+    licence_id="CC0-1.0",
+    licence_evidence_url="https://github.com/openfootball/england/blob/9ee7a0c351805c99cc334478a9bf04b7d0432fec/LICENSE.md",
+    licence_blob_sha="670154e3538863b2d9891fd5483160fbdfc89164",
+    retrieved_at_utc=recorded_retrieval_utc,
+)
+archive = parse_openfootball_epl(raw, source=source)
+coverage = summarize_exploratory_coverage(archive)
+print(coverage.banner, coverage.accepted_rows, coverage.quarantined_rows)
+# Pinned sample audit: 380 accepted, 0 quarantined; this is parsing coverage.
+candidates = select_exploratory_prior_dates(archive, date(2023, 9, 1))
+print(candidates.policy)  # hypothetical retrospective candidates only
+report_bytes = exploratory_json(coverage)
+```
+
+`OpenFootballError.code` distinguishes atomic integrity/provenance/encoding
+failures from line-level quarantine. Each accepted row retains raw text,
+calendar-date header, exact source line/locator, file SHA256 and Git blob SHA.
+Duplicate, changed-date or conflicting home-away pair rows are excluded without
+choosing a winner; unknown/status/invalid-date rows retain reasons and counts.
+UTF8 BOM and CRLF are supported without altering the raw-byte checksum.
+
+Calendar years use the explicit July–June season window, with weekday validation.
+Printed `HH:MM` remains untrusted text: `kickoff_utc=None`, timezone `UNKNOWN`,
+`historical_available_at=None`. Retrieval describes acquisition of a final
+archive; it never substitutes for historical result publication.
+
+The optional helper applies a calendar embargo of at least two days and excludes
+an optional adapter target identity. It does not fit, forecast or certify prior
+knowledge. Its digest covers only selected semantic rows and stable source
+identity, so purely future nonconflicting changes leave earlier candidates
+unchanged. A correction/conflict to an earlier fixture can invalidate it.
+Full import/audit hashes include source pins and locators and change accordingly.
+Checksums verify caller assertions; offline parsing cannot authenticate a remote
+commit tree, data truth or every third-party right. No real-data model training,
+performance measurement, AH odds, win rate, ROI or paid-data access is included.
+
+Run `python -m unittest discover -s tests -v` (418 tests), and
+`python -m unittest tests.test_openfootball_exploratory_leakage -v` (18 tests).
+See [the Scope A implementation report](handoffs/CODEX_PHASE3B_SCOPEA_IMPLEMENTATION_REPORT.md)
+for source audits, licensing, API contracts, tests and limitations.
