@@ -3,7 +3,9 @@
 This offline Python library provides exact Asian handicap settlement (Phase 1A)
 and fixed-rate independent-Poisson probabilities (Phase 1B).
 It accepts **full-time regulation goals including stoppage time**, excluding
-extra time and penalties. All examples and tests use fabricated results.
+extra time and penalties. Settlement and synthetic-pipeline examples use
+fabricated results. Phase 3C-A has a separately labelled, pinned real-results
+fixture used only for offline retrospective model fitting.
 
 ## Quick start
 
@@ -549,3 +551,56 @@ To record a separately supplied genuine forecast (not created by this recorder),
 `assess_untrusted_comment_metadata(frozen, metadata, fixture_status="UNKNOWN")` checks *supplied claims* for permalink/ID/body/time mismatches and edited or late timestamps. It returns only `REJECTED` or `PLAUSIBLE_CLAIM_UNVERIFIED`, always with `external_audit_required=True`. **It cannot independently verify GitHub, source first-publication, kickoff accuracy or comment-edit history.** Manual publication of `manual_comment_template` and independent retrieval of server metadata are separate, explicitly owner-controlled future actions. A posted hash alone proves neither true pre-match inputs nor model accuracy. No results, scores, ROI or post-match labels belong in a frozen packet.
 
 Run focused tests with `python -B -m unittest tests.test_prospective_evidence -v` or the whole existing suite with `python -B -m unittest discover -s tests -v`. No third-party dependencies are added.
+
+## Phase 3C-A: isolated descriptive EPL fitting
+
+`premfootballbot.real_epl_training` fits only the approved OpenFootball 2023–24
+archive at commit `9ee7a0c351805c99cc334478a9bf04b7d0432fec`. Exact archive and
+CC0 license bytes are included under `tests/fixtures/openfootball_2023_24/` for
+offline reproduction. SOURCE.json records acquisition, never historical availability.
+2025–26 and edited, partial or differently licensed sources are rejected.
+
+```python
+from datetime import datetime
+import json
+from pathlib import Path
+from premfootballbot.openfootball_exploratory import OpenFootballSource
+from premfootballbot.real_epl_training import (
+    fit_real_epl, retrospective_json, verify_retrospective_fit,
+)
+
+folder = Path("tests/fixtures/openfootball_2023_24")
+metadata = json.loads((folder / "SOURCE.json").read_text(encoding="utf8"))
+metadata["retrieved_at_utc"] = datetime.fromisoformat(metadata["retrieved_at_utc"])
+raw = (folder / "1-premierleague.txt").read_bytes()
+license_bytes = (folder / "LICENSE.md").read_bytes()
+model = fit_real_epl(raw, source=OpenFootballSource(**metadata), license_bytes=license_bytes)
+assert model.status == "RETROSPECTIVE_DESCRIPTIVE_ONLY"
+assert verify_retrospective_fit(model, raw, license_bytes=license_bytes)
+canonical_bytes = retrospective_json(model)  # Caller chooses whether/where to save.
+```
+
+The independent Poisson log-link model estimates a season intercept, home
+advantage and team attack/defensive-vulnerability effects with positive ridge
+regularization. No third-party dependencies are needed. `RealFitConfig` defaults
+to ridge=4, max_iterations=100, gradient_tolerance=1e-7; these are engineering
+choices, without tuning or validation on future results. Nonconvergence fails
+atomically. See the [engineering handoff](handoffs/CODEX_PHASE3CA_IMPLEMENTATION_REPORT.md)
+for equations, bounds, error codes, source audit and executed tests.
+
+Artifacts retain all 380 accepted rows, original team labels, dates/locators,
+source/license fingerprints, configuration, exclusions, parameter estimates,
+convergence and in-sample diagnostics. They contain no forecasts or historical
+availability claims. Canonical JSON and SHA256 are deterministic in the same
+Python/math runtime, including the supplied retrieval metadata. Checksums detect
+accidental alteration; the replay verifier recomputes the fit from pinned bytes.
+No artifact deserializer grants trust to external JSON.
+
+All results are **RETROSPECTIVE_DESCRIPTIVE_ONLY**. The complete season informs
+each parameter. In-sample likelihood/deviance establish neither live accuracy nor
+profitability or Asian Handicap betting value. There is no cutoff, target,
+prediction, evaluation, publication or automation API. Existing synthetic-only
+ingestion, expected-goal estimation and backtesting retain their separate gates.
+
+Run `python -B -m unittest tests.test_real_epl_training tests.test_real_epl_isolation -v`
+for the 57 new cases; the complete suite contains 507 tests.

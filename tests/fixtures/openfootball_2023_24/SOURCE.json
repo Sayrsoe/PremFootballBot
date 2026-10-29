@@ -1,0 +1,11 @@
+{
+  "repository_url": "https://github.com/openfootball/england",
+  "repository_commit_sha": "9ee7a0c351805c99cc334478a9bf04b7d0432fec",
+  "path": "2023-24/1-premierleague.txt",
+  "expected_git_blob_sha": "23cdd8a340b72f6f30c514fbf609d5cf252723aa",
+  "expected_sha256": "0bfb4a7fffe0b1bf7318955686eafeb28fc9676346ae433259e7409d69551450",
+  "licence_id": "CC0-1.0",
+  "licence_evidence_url": "https://github.com/openfootball/england/blob/9ee7a0c351805c99cc334478a9bf04b7d0432fec/LICENSE.md",
+  "licence_blob_sha": "670154e3538863b2d9891fd5483160fbdfc89164",
+  "retrieved_at_utc": "2026-10-29T12:47:38+00:00"
+}
