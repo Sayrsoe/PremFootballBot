@@ -1,0 +1,3 @@
+# Preserve audited upstream bytes even in autocrlf checkouts.
+1-premierleague.txt -text
+LICENSE.md -text
