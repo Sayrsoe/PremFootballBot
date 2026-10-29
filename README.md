@@ -498,3 +498,54 @@ Run `python -m unittest discover -s tests -v` (418 tests), and
 `python -m unittest tests.test_openfootball_exploratory_leakage -v` (18 tests).
 See [the Scope A implementation report](handoffs/CODEX_PHASE3B_SCOPEA_IMPLEMENTATION_REPORT.md)
 for source audits, licensing, API contracts, tests and limitations.
+
+## Offline prospective evidence recorder (research infrastructure only)
+
+`premfootballbot.prospective_evidence` freezes a **locally supplied, EPL-only** pre-match evidence packet. It does not fetch fixtures, source files, odds, or GitHub metadata; does not use a local clock; and does not train, predict or score any real match. It is deliberately not part of the existing synthetic-only training/forecast APIs or the read-only OpenFootball exploratory adapter.
+
+The caller supplies JSON (maximum 65,536 UTF-8 bytes) or a Python mapping. Required root fields are `protocol`, `league`, `assurance`, `fixture`, `cutoff_utc`, `inputs`, `forecast`, `model`, and `capture`. Use `protocol="pmb-prospective-evidence/v1"`, `league="EPL"`, and `assurance="LOCAL_ONLY"`. All timestamps must have an exact UTC `Z` suffix, with seconds and an optional fractional component. `cutoff_utc` must precede kickoff, and local source/capture observations must precede the cutoff. No timestamp or source-rights claim becomes externally trusted merely because it appears in the packet.
+
+Demo only (fictional fixture, NOT an actual EPL match or prediction):
+
+```python
+from premfootballbot.prospective_evidence import (
+    VERSION, freeze_packet, manual_comment_template, manual_external_audit_worksheet,
+)
+
+packet = {
+    "protocol": VERSION, "league": "EPL", "assurance": "LOCAL_ONLY",
+    "fixture": {
+        "fixture_id": "DEMO-FAKE-2027-01", "home": "Example Town FC",
+        "away": "Example Albion FC", "kickoff_utc": "2027-01-10T15:00:00Z",
+        "kickoff_source_url": "https://example.org/fixtures/demo",
+        "kickoff_observed_at_utc": "2027-01-09T10:00:00Z",
+    },
+    "cutoff_utc": "2027-01-10T14:00:00Z",
+    "inputs": [{
+        "source_id": "demo-source", "source_url": "local://operator/demo",
+        "content_sha256": "a" * 64, "license_status": "UNKNOWN",
+        "license_reference": None, "acquired_at_utc": "2027-01-09T10:30:00Z",
+        "source_available_at_utc": None,
+        "verified_by_external_observer_at_utc": None,
+    }],
+    "forecast": {"kind": "NO_FORECAST"}, "model": None,
+    "capture": {
+        "captured_at_utc": "2027-01-09T11:00:00Z", "operator": "demo",
+        "method": "manual", "local_only": True,
+    },
+}
+
+frozen = freeze_packet(packet)
+print(frozen.commitment_sha256)
+print(manual_comment_template(frozen))  # Prints only; does not post.
+print(manual_external_audit_worksheet(frozen))
+# Persist frozen.canonical_bytes only when YOU explicitly choose a local path.
+```
+
+To record a separately supplied genuine forecast (not created by this recorder), supply `model={"name": ..., "version": ..., "config_sha256": <64 lowercase hex>}` and `forecast={"kind": "ONE_X_TWO", "probabilities": {"home": "0.4", "draw": "0.3", "away": "0.3"}}`. Probabilities must be exact bounded decimal **strings** totaling exactly one. `NO_FORECAST` is an abstention and **never** a performance observation.
+
+`freeze_packet` returns immutable `FrozenEvidence` with canonical UTF-8 JSON and domain-separated SHA-256. The canonical encoding sorts object keys, normalizes UTC timestamps and exact probability decimals, and sorts input references by unique `source_id`. A changed substantive field changes the digest. Duplicate input IDs, duplicate JSON object keys, forbidden post-match fields, NaN/Infinity, booleans as probabilities, Unicode control/confusable team labels, unsafe URL credentials, or invalid date ordering are rejected.
+
+`assess_untrusted_comment_metadata(frozen, metadata, fixture_status="UNKNOWN")` checks *supplied claims* for permalink/ID/body/time mismatches and edited or late timestamps. It returns only `REJECTED` or `PLAUSIBLE_CLAIM_UNVERIFIED`, always with `external_audit_required=True`. **It cannot independently verify GitHub, source first-publication, kickoff accuracy or comment-edit history.** Manual publication of `manual_comment_template` and independent retrieval of server metadata are separate, explicitly owner-controlled future actions. A posted hash alone proves neither true pre-match inputs nor model accuracy. No results, scores, ROI or post-match labels belong in a frozen packet.
+
+Run focused tests with `python -B -m unittest tests.test_prospective_evidence -v` or the whole existing suite with `python -B -m unittest discover -s tests -v`. No third-party dependencies are added.
