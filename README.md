@@ -604,3 +604,59 @@ ingestion, expected-goal estimation and backtesting retain their separate gates.
 
 Run `python -B -m unittest tests.test_real_epl_training tests.test_real_epl_isolation -v`
 for the 57 new cases; the complete suite contains 507 tests.
+
+## Phase 3D-A: offline prospective shadow adapter
+
+`premfootballbot.shadow_pilot.forecast_shadow` is a separate adapter over the
+reviewed 2023–24 model and existing Poisson calculations. It returns a frozen
+`ShadowDecision` containing status/reason, canonical audit report bytes/hash and
+an optional existing prospective recorder packet. No prior module is modified.
+The model retains `RETROSPECTIVE_DESCRIPTIVE_ONLY`; the adapter's forecast is
+`SHADOW_FORECAST` with `LOCAL_ONLY` assurance and unestablished predictive validity.
+This stale season baseline has no demonstrated future-EPL accuracy.
+
+Inputs are supplied as bytes and explicit metadata; no files, clock, provider,
+publication or gambling calls occur. Before any real use, an independent person
+must check the scheduled fixture, UTC kickoff, team identities, source rights
+and snapshot, then deliver a reviewed envelope to the owner. The owner places
+that envelope's SHA256 in a **separately trusted registry**. Do not automatically
+derive trusted pins from incoming fixture data. Empty pins always abstain. This
+is an offline pin/consistency gate, not authentication of a human or trusted time.
+No genuine kickoff review, real forecast or shadow pilot run is claimed here.
+
+Required keyword arguments: `license_bytes`, `snapshot_bytes`, `review_bytes`,
+`approved_review_sha256` (tuple, empty by default), `team_mapping` (tuple of exact
+future-label/model-label pairs), `cutoff_utc`, `model_acquired_at_utc`, `operator`.
+Positional arguments are the unchanged verified model and pinned archive bytes.
+The full schemas and owner workflow are in the
+[Phase 3D-A handoff](handoffs/CODEX_PHASE3DA_IMPLEMENTATION_REPORT.md).
+
+The adapter requires exact local model replay, fixed semantic approval, default model configuration,
+explicit one-to-one team mappings, independently reviewed/pinned EPL snapshot,
+known UTC kickoff strictly after cutoff, cleared rights, acquisition/review
+before cutoff, review age at most24h, and an unexpired review. No inferred
+timezone, fuzzy team alias, promoted-team fallback or historical target is used.
+Caller-supplied cutoff/capture and acquisition times still require external audit.
+
+Rates and Poisson tail/roundoff bounds are checked before emitting probabilities.
+The audit preserves raw 1X2 masses, retained/omitted mass/bound and goal caps.
+To meet the unchanged recorder's exact-sum contract, the adapter explicitly
+conditions on retained mass and uses largest-remainder rounding to15 decimal
+places. This approximation is recorded, never hidden in the Poisson module.
+Its audit report, mapping and model hashes are bound into the evidence packet.
+
+Failures return `ABSTAIN`. Invalid/unapproved fixture evidence has no packet;
+valid fixture evidence with unsupported model/teams/numerics has a `NO_FORECAST`
+packet. Neither abstention is a performance observation. Registry expiry/revocation
+and new fixture changes must be independently checked; there is no live monitor.
+No automatic publication, paid API, scraping, execution or accuracy/value claim.
+
+Run `python -B -m unittest tests.test_shadow_pilot -v` for41 new tests using
+explicitly invented future fixture/review evidence. Full suite:548 tests.
+
+PR9 portability follow-up: semantic approval pins all provenance and configuration
+exactly and compares all42 coefficients against a fixed reviewed reference within
+1e-10 absolute error. Artifact seals and local replay remain byte-exact. Runtime
+labels and optimizer diagnostics cannot bypass replay. No runtime-generated hash
+is automatically approved. See [portable authorization handoff](handoffs/CODEX_PR9_PORTABLE_MODEL_AUTHORIZATION.md).
+Full suite:563 tests, including15 new portability/integrity tests.
