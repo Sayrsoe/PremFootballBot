@@ -38,3 +38,11 @@ Before EVERY implementation task:
 
 ## Task completion report
 Include: (1) repo review, (2) GitHub reference research and licensing or why it was unnecessary, (3) implementation summary, (4) tests/evaluation, (5) remaining risks and next steps.
+
+## Owner-approved delivery and review gate
+- The permanent workflow is documented in [docs/ENGINEERING_WORKFLOW.md](docs/ENGINEERING_WORKFLOW.md).
+- ChatGPT normally delivers one comprehensive task-specific prompt directly in chat. No mandatory ZIP or preliminary GitHub task file; use GitHub for additional handoff material only when needed.
+- Codex completes work on a feature branch and opens a **draft PR** with readable evidence, exact base/head/tree hashes, actual test commands and results. Follow `.github/pull_request_template.md`.
+- GitHub Actions checks the complete offline unittest suite on Python 3.10 and 3.12. Check CI state; do not claim CI passed when pending, failed or unavailable.
+- Independent source/code/leakage review and explicit owner approval for the exact PR/head are prerequisites to merging. Never auto-merge. Reverify live refs and source tree immediately before a separately authorized merge.
+- Do not broaden a model-development authorization to include fitting, holdout tuning, deployment, live data or betting activity. Preserve historical datasets, evidence and protected fixtures.
