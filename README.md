@@ -683,3 +683,24 @@ independent-review instructions. No genuine prices/results or Trial1 changes.
 No network, scraping, paid services, automatic publication, bets, fitting or3E-B.
 Run `python -B -m unittest tests.test_odds_evaluation -v` (57 new tests), or
 `python -B -m unittest discover -s tests -v` (620 total).
+
+## Phase4A: completed2024–25 and2025–26 EPL results
+
+`premfootballbot.completed_epl` imports only the two approved pinned CC0 archives
+from supplied bytes/manifests/license, with no I/O in the core. Immutable sealed
+output contains760 results, full raw-row provenance, two380-match coverage
+reports and explicit reviewed aliases. Each season must have20 clubs,19 home
+and19 away appearances, every directed pair once and10 matches per nominal
+round. Rows sort by actual date; round order is never chronology.
+
+Outputs remain EXPLORATORY_DATE_LEVEL_RECONSTRUCTION/NON_SYNTHETIC_REAL_ARCHIVE.
+UTC kickoff and historical availability remain unknown, strict point-in-time
+eligibility is false, and missing halftime/clocks are preserved.2026–27 partial
+results are not an accepted profile. No model fitting/evaluation/forecast API.
+All prior source modules and protected behavior are unchanged.
+
+See [the Phase4A handoff and executable byte-input example](handoffs/CODEX_PHASE4A_IMPLEMENTATION_REPORT.md)
+for the source/license audit, exact manifests, APIs, alias/date contracts, failure
+issues and test evidence. Exact CC0 fixtures are under tests/fixtures/completed_epl.
+Run `python -B -m unittest tests.test_completed_epl -v` (33 new tests), or
+`python -B -m unittest discover -s tests -v` (653 total).

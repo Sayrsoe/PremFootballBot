@@ -1,0 +1,24 @@
+[
+  {
+    "repository_url": "https://github.com/openfootball/england",
+    "repository_commit_sha": "9ee7a0c351805c99cc334478a9bf04b7d0432fec",
+    "path": "2024-25/1-premierleague.txt",
+    "expected_git_blob_sha": "ca0fe4923f0164d0f879f796ab0759253e13bc06",
+    "expected_sha256": "e39716b01af0c8654a9fae7b5555e6b02f506ea05239e0d0eef41936ba80e1e3",
+    "licence_id": "CC0-1.0",
+    "licence_evidence_url": "https://github.com/openfootball/england/blob/9ee7a0c351805c99cc334478a9bf04b7d0432fec/LICENSE.md",
+    "licence_blob_sha": "670154e3538863b2d9891fd5483160fbdfc89164",
+    "retrieved_at_utc": "2026-10-30T12:15:01+00:00"
+  },
+  {
+    "repository_url": "https://github.com/openfootball/england",
+    "repository_commit_sha": "9ee7a0c351805c99cc334478a9bf04b7d0432fec",
+    "path": "2025-26/1-premierleague.txt",
+    "expected_git_blob_sha": "918adf1c0af4f613c73530cb528ab0df72461cfb",
+    "expected_sha256": "38c1de56c9e9b6662c7efc1420b7e1fe00dddbb502fe72d8f759e773ba3c093b",
+    "licence_id": "CC0-1.0",
+    "licence_evidence_url": "https://github.com/openfootball/england/blob/9ee7a0c351805c99cc334478a9bf04b7d0432fec/LICENSE.md",
+    "licence_blob_sha": "670154e3538863b2d9891fd5483160fbdfc89164",
+    "retrieved_at_utc": "2026-10-30T12:15:01+00:00"
+  }
+]
