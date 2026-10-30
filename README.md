@@ -748,3 +748,30 @@ for APIs, policy bounds, source/research audit, threat model and review instruct
 Run `python -B -m unittest tests.test_chronological_candidates -v` (28 new tests),
 or `python -B -m unittest discover -s tests -v` (707 total). The latter includes
 unchanged earlier-phase fitting/scoring test fixtures, not new4C1 experiments.
+
+
+## Phase 4C2-A: offline prior-only cold-start fallback
+
+`premfootballbot.retrospective_candidates` source-replays the unchanged Phase 4A
+archive and Phase 4C1 protocol before joining only eligible 2024 training results.
+Unknown training-history teams can receive unconditional H/D/A frequencies,
+explicitly `PRIOR_ONLY`/`TEAM_STRENGTH_UNIDENTIFIED`. No smoothing, team-strength
+inference, new Poisson fit or outcome scoring. Insufficient history or any zero
+class abstains; established teams remain `ESTABLISHED_NOT_EVALUATED` with no
+probabilities. The public history floor is 100, with calendar embargo >=2 days.
+
+Artifacts are frozen, grouped by whole target date, label-free, canonically
+sealed and source-replayable. Checksums are not signatures. Kickoff/availability
+remain unknown and strict point-in-time eligibility false. 2025–26 remains
+`EXPOSED_HOLDOUT_NOT_CONFIRMATORY`, excluded from targets and selection.
+Default-policy audit of all 109 development dates: 380 targets, 280 established
+but unfitted, 100 insufficient-history abstentions, **0 prior-only**. No gate
+was weakened to manufacture cold-start coverage; invented private oracles test it.
+No predictive improvement or historical ex-ante claim follows from these counts.
+
+See [the full Phase 4C2-A engineering handoff](handoffs/CODEX_PHASE4C2A_IMPLEMENTATION_REPORT.md)
+for source rights, APIs, executable replay example and independent-review limits.
+Run `python -B -m unittest tests.test_retrospective_candidates -v` (36 new tests)
+and `python -B -m unittest discover -s tests -v` (743 total). The full suite
+retains older fixture fitting/scoring regressions; the new path calls neither.
+Draft PR only; no 4C2-B without separate owner approval.
