@@ -704,3 +704,26 @@ for the source/license audit, exact manifests, APIs, alias/date contracts, failu
 issues and test evidence. Exact CC0 fixtures are under tests/fixtures/completed_epl.
 Run `python -B -m unittest tests.test_completed_epl -v` (33 new tests), or
 `python -B -m unittest discover -s tests -v` (653 total).
+
+## Phase4B: fixed retrospective chronological experiment
+
+`premfootballbot.chronological_epl` fits only the pinned2024–25 development
+season with fixed ridge4, then evaluates the unchanged model on2025–26.
+Training-only outcome frequencies are scored on the identical supported matches.
+Unknown promoted clubs abstain:272 scored,108 abstained of380 holdout fixtures.
+There is no holdout retraining, tuning, current-season input or public forecast.
+
+Separate sealed model, label-free forecast and scoring artifacts preserve source
+replay, canonical identities, date groups and numerical diagnostics. Development
+folds group whole dates with at least2-calendar-day embargo; holdout dates are
+reserved. Outputs remain RETROSPECTIVE_DATE_LEVEL_SIMULATION_NOT_EX_ANTE_VERIFIED,
+with unknown UTC kickoff/availability and false strict point-in-time eligibility.
+Existing synthetic,2023 model authorization, shadow and Trial1 guards are intact.
+
+Mean unscaled Brier/log loss:0.6310161553/1.0502031345, versus training-frequency
+0.6526472625/1.0777063783. Both descriptive date-cluster uncertainty intervals
+cross zero; these are not live accuracy, calibration or profitability claims.
+See [the full Phase4B handoff and executable example](handoffs/CODEX_PHASE4B_IMPLEMENTATION_REPORT.md)
+for exact metrics, reference differences, APIs, research/licenses and limitations.
+Run `python -B -m unittest tests.test_chronological_epl -v` (26 new tests), or
+`python -B -m unittest discover -s tests -v` (679 total).
