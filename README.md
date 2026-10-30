@@ -660,3 +660,26 @@ exactly and compares all42 coefficients against a fixed reviewed reference withi
 labels and optimizer diagnostics cannot bypass replay. No runtime-generated hash
 is automatically approved. See [portable authorization handoff](handoffs/CODEX_PR9_PORTABLE_MODEL_AUTHORIZATION.md).
 Full suite:563 tests, including15 new portability/integrity tests.
+
+## Phase3E-A: offline odds records and post-match evaluation
+
+New isolated modules `odds_observations` and `result_evaluation` preserve frozen
+forecasts and all earlier source APIs. Explicit DECIMAL/AMERICAN/HONG_KONG/MALAY/
+INDONESIAN text prices convert to exact rational gross odds; bare -100 is never
+inferred. Immutable canonical records keep provenance, timing and hash links.
+A decimal display is labelled separately when the exact rational recurs.
+
+Complete matched1X2 snapshots require actual retained bytes, external approval
+pins and capture/review before forecast capture/cutoff. Proportional no-vig and
+margin are descriptive benchmarks. Separate reviewed regulation results enable
+unscaled Brier and natural log loss; missing/unverified/conflicting results stay
+PENDING, and NO_FORECAST is excluded. AH uses the existing settlement and raw
+Poisson APIs, preserving pushes, half outcomes and omitted-tail uncertainty.
+Hypothetical unit net is not actual wagering ROI.
+
+See [the full engineering handoff and executable invented example](handoffs/CODEX_PHASE3EA_IMPLEMENTATION_REPORT.md)
+for schemas, API usage, security/rights research, source/time limitations and
+independent-review instructions. No genuine prices/results or Trial1 changes.
+No network, scraping, paid services, automatic publication, bets, fitting or3E-B.
+Run `python -B -m unittest tests.test_odds_evaluation -v` (57 new tests), or
+`python -B -m unittest discover -s tests -v` (620 total).
