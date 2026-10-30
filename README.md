@@ -775,3 +775,7 @@ Run `python -B -m unittest tests.test_retrospective_candidates -v` (36 new tests
 and `python -B -m unittest discover -s tests -v` (743 total). The full suite
 retains older fixture fitting/scoring regressions; the new path calls neither.
 Draft PR only; no 4C2-B without separate owner approval.
+
+## Engineering and review process
+
+For approved scoped development, detailed Codex task instructions are given directly in chat; permanent engineering conventions, CI rules, draft PR handoffs and exact-commit independent review are described in [docs/ENGINEERING_WORKFLOW.md](docs/ENGINEERING_WORKFLOW.md). Full offline tests run on PRs through [GitHub Actions](.github/workflows/quality.yml). No mandatory ZIPs, automatic merges, or new-model authorization is implied by CI.
