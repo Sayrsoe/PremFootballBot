@@ -35,3 +35,10 @@
 - Provenance/cutoff/holdout correctly labelled; no claim of new validity from retrospective data.
 - Exact head/tree reverified against the independent-review decision.
 - Owner's explicit merge authorization recorded.
+
+## Task allocation and milestone status (follow-up)
+- First consult [PROJECT_STATUS.md](../PROJECT_STATUS.md) as a dated **manual** snapshot, then independently re-check PRs, main and CI. A snapshot is not authorization or a live state monitor.
+- Before preparing a task-specific implementation prompt, propose owner-visible role allocation and a bounded scope using [AGENT_HANDOFF_STANDARD.md](AGENT_HANDOFF_STANDARD.md). Incorporate free-text owner comments; explicitly distinguish research, docs, code, fitting, deployment and merge approvals.
+- Codex must provide the standardized completion report in a draft PR or checked-in handoff. ChatGPT verifies the exact head/tree and source; the owner separately approves merge. No automatic reauthorization after a milestone.
+- Any GitHub ruleset is an **owner/admin settings action**. See [GITHUB_RULESET_SETUP.md](GITHUB_RULESET_SETUP.md); check whether rules are active rather than assuming protections from written instructions.
+- Stacked PRs: review and merge prerequisites separately, then retarget dependent PRs to main, re-evaluate the diff/CI and obtain **new** exact-head merge approval for each.

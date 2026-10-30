@@ -3,6 +3,14 @@
 - Approved scope and explicit exclusions:
 - Research references and license decisions (or why research unnecessary):
 
+## Task allocation and handoff
+- Owner-visible [task allocation](../docs/AGENT_HANDOFF_STANDARD.md) and owner comments incorporated:
+- ChatGPT review responsibility:
+- Codex implementation responsibility:
+- Research helper questions/results (or not needed):
+- [ ] Codex completion report present in this PR body or linked checked-in handoff.
+- Project checkpoint reviewed against live GitHub refs (not assumed current):
+
 ## Changes
 - Summary:
 - Files changed:

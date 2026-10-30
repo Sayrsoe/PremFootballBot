@@ -46,3 +46,9 @@ Include: (1) repo review, (2) GitHub reference research and licensing or why it 
 - GitHub Actions checks the complete offline unittest suite on Python 3.10 and 3.12. Check CI state; do not claim CI passed when pending, failed or unavailable.
 - Independent source/code/leakage review and explicit owner approval for the exact PR/head are prerequisites to merging. Never auto-merge. Reverify live refs and source tree immediately before a separately authorized merge.
 - Do not broaden a model-development authorization to include fitting, holdout tuning, deployment, live data or betting activity. Preserve historical datasets, evidence and protected fixtures.
+
+## Project control and completion report
+- Read [PROJECT_STATUS.md](PROJECT_STATUS.md) as a manually dated checkpoint; verify current GitHub refs/PR states independently.
+- Use [docs/AGENT_HANDOFF_STANDARD.md](docs/AGENT_HANDOFF_STANDARD.md) to show role allocation and owner-comment handling **before** an implementation prompt and to complete the reproducible Codex handoff report after scoped work.
+- Ruleset setup is documented in [docs/GITHUB_RULESET_SETUP.md](docs/GITHUB_RULESET_SETUP.md); documentation alone does not enable branch protection.
+- Do not treat stacked workflow PRs as merged or broaden the user's docs-only authorization to new football-model or data changes.
