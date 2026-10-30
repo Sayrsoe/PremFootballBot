@@ -631,7 +631,7 @@ Positional arguments are the unchanged verified model and pinned archive bytes.
 The full schemas and owner workflow are in the
 [Phase 3D-A handoff](handoffs/CODEX_PHASE3DA_IMPLEMENTATION_REPORT.md).
 
-The adapter requires exact reviewed model digest, default model configuration,
+The adapter requires exact local model replay, fixed semantic approval, default model configuration,
 explicit one-to-one team mappings, independently reviewed/pinned EPL snapshot,
 known UTC kickoff strictly after cutoff, cleared rights, acquisition/review
 before cutoff, review age at most24h, and an unexpired review. No inferred
@@ -653,3 +653,10 @@ No automatic publication, paid API, scraping, execution or accuracy/value claim.
 
 Run `python -B -m unittest tests.test_shadow_pilot -v` for41 new tests using
 explicitly invented future fixture/review evidence. Full suite:548 tests.
+
+PR9 portability follow-up: semantic approval pins all provenance and configuration
+exactly and compares all42 coefficients against a fixed reviewed reference within
+1e-10 absolute error. Artifact seals and local replay remain byte-exact. Runtime
+labels and optimizer diagnostics cannot bypass replay. No runtime-generated hash
+is automatically approved. See [portable authorization handoff](handoffs/CODEX_PR9_PORTABLE_MODEL_AUTHORIZATION.md).
+Full suite:563 tests, including15 new portability/integrity tests.

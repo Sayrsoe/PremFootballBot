@@ -1,5 +1,9 @@
 # Phase 3D-A implementation and independent-review handoff
 
+Portability follow-up: the exact runtime-specific approval hash described below
+is superseded by [fixed semantic approval plus unchanged exact local replay](CODEX_PR9_PORTABLE_MODEL_AUTHORIZATION.md). Other original safeguards remain.
+This report records the original implementation; follow-up test evidence is separate.
+
 ## Authority and baseline
 
 Owner approved an offline prospective shadow adapter, preserving all existing
