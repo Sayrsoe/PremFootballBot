@@ -786,3 +786,30 @@ For approved scoped development, detailed Codex task instructions are given dire
 - [GitHub ruleset owner setup](docs/GITHUB_RULESET_SETUP.md) — optional manual admin setup; **not** evidence that enforcement is enabled.
 
 These documents do not grant permission to merge, fit/tune models, collect live odds or run forecasts. Recheck exact GitHub refs and source evidence before taking action.
+
+## Phase 4C2-B1: weighted Poisson numerical laboratory
+
+`premfootballbot.weighted_poisson` is an isolated stdlib numerical engine for
+invented test matches only. It implements raw exponential decay
+`w = 2 ** (-age_days / half_life_days)` (or explicit no decay), full weighted
+Poisson NLL, analytic gradient/Hessian, fixed-form ridge regularization and a
+deterministic Newton/Cholesky/Armijo fit. It reports match/team weight mass, ESS,
+convergence and conditioning diagnostics; malformed or unstable inputs fail.
+Weights are not normalized, so decay changes likelihood strength relative to
+ridge. Intercept/home effect stay unpenalized; team attacks/vulnerabilities are
+penalized. No existing numerical function or authorization gate changes.
+
+This module accepts a dedicated `InventedMatch` type with `toy:` identities.
+That marker prevents accidental type confusion; it does not prove data rights
+or authorize real matches. There is no EPL importer, fold adapter, prediction,
+scoring, API, deployment or half-life selection. None/90/180/365 are design
+candidates, not measured winners. Existing real-data and synthetic/prospective
+workflows retain their own unchanged restrictions.
+
+See [the permanent B1 engineering handoff](handoffs/CODEX_PHASE4C2B1_IMPLEMENTATION_REPORT.md)
+for equations, API example, bounds, research/licenses, replay and limitations.
+Run `python -B -m unittest tests.test_weighted_poisson -v` (38 invented-data tests)
+and `python -B -m unittest discover -s tests -v` (781 total). Existing regressions
+include earlier authorized fixture fits/scoring, not a new B1 real-data study.
+The draft PR carries the final downloadable review ZIP in `handoffs/reviews/`.
+Independent review and explicit owner approval are required; no merge or B2.
