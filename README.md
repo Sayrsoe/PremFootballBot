@@ -727,3 +727,24 @@ See [the full Phase4B handoff and executable example](handoffs/CODEX_PHASE4B_IMP
 for exact metrics, reference differences, APIs, research/licenses and limitations.
 Run `python -B -m unittest tests.test_chronological_epl -v` (26 new tests), or
 `python -B -m unittest discover -s tests -v` (679 total).
+
+## Phase4C1: protocol-only chronological fold audit
+
+`premfootballbot.chronological_candidates` wraps the unchanged development fold
+selector. It emits sealed immutable reference/policy manifests for2024–25 dates,
+whole same-day target groups, calendar embargo>=2, minimum-history controls and
+training-only team populations. No goal labels, metrics or model parameters are
+included.2025–26 is EXPOSED_HOLDOUT_NOT_CONFIRMATORY and cannot select candidates.
+
+The policy declares future benchmark names, matched-fixture/coverage accounting,
+scoring separation and uncertainty placeholders without executing any of them.
+Source-backed replay detects even re-sealed changes; local hashes do not certify
+historical publication. Unknown kickoff/availability and false strict eligibility
+remain explicit. Existing modules, fixtures, model/shadow/Trial1 guards unchanged.
+
+**NO NEW MODEL FITTING OR OUTCOME SCORING. NO PROSPECTIVE VALIDITY CLAIM.**
+See [the full Phase4C1 handoff and executable non-training example](handoffs/CODEX_PHASE4C1_IMPLEMENTATION_REPORT.md)
+for APIs, policy bounds, source/research audit, threat model and review instructions.
+Run `python -B -m unittest tests.test_chronological_candidates -v` (28 new tests),
+or `python -B -m unittest discover -s tests -v` (707 total). The latter includes
+unchanged earlier-phase fitting/scoring test fixtures, not new4C1 experiments.
