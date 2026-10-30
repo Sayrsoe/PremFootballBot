@@ -776,6 +776,16 @@ and `python -B -m unittest discover -s tests -v` (743 total). The full suite
 retains older fixture fitting/scoring regressions; the new path calls neither.
 Draft PR only; no 4C2-B without separate owner approval.
 
+## Engineering and review process
+
+For approved scoped development, detailed Codex task instructions are given directly in chat; permanent engineering conventions, CI rules, draft PR handoffs and exact-commit independent review are described in [docs/ENGINEERING_WORKFLOW.md](docs/ENGINEERING_WORKFLOW.md). Full offline tests run on PRs through [GitHub Actions](.github/workflows/quality.yml). No mandatory ZIPs, automatic merges, or new-model authorization is implied by CI.
+
+### Project-control quick links
+- [Current checkpoint and approval gates](PROJECT_STATUS.md) — dated manual status, not a live dashboard.
+- [Agent allocation and Codex completion standard](docs/AGENT_HANDOFF_STANDARD.md) — reusable owner-approved task and PR evidence format.
+- [GitHub ruleset owner setup](docs/GITHUB_RULESET_SETUP.md) — optional manual admin setup; **not** evidence that enforcement is enabled.
+
+These documents do not grant permission to merge, fit/tune models, collect live odds or run forecasts. Recheck exact GitHub refs and source evidence before taking action.
 
 ## Phase 4C2-B1: weighted Poisson numerical laboratory
 
