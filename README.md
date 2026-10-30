@@ -813,3 +813,33 @@ and `python -B -m unittest discover -s tests -v` (781 total). Existing regressio
 include earlier authorized fixture fits/scoring, not a new B1 real-data study.
 The draft PR carries the final downloadable review ZIP in `handoffs/reviews/`.
 Independent review and explicit owner approval are required; no merge or B2.
+
+## Phase 4C2-B2A: read-only training-fold boundary
+
+`premfootballbot.weighted_fold_boundary` is an isolated, source-backed
+development-fold **manifest**, not an executable weighted model. Public
+`build_training_boundary(protocol, dataset, inputs, *, license_bytes)`
+revalidates the exact pinned source/license and Phase 4C1 chronology before
+reading **only** eligible training labels. Its immutable per-fold entries
+preserve authenticated fixture IDs, source/team identity, FT90 training goals,
+explicit calendar ages measured from the target date, full label-free target
+groups, minimum-history status and SHA256 evidence.
+
+The existing floor is **at least 100 training matches** and the calendar
+embargo **at least two days**. The 2025–26 season is explicitly exposed and
+excluded from development selection. Target, embargo, future and holdout
+results are not read into the boundary. Independent source replay via
+`verify_training_boundary(...)` detects forged or re-sealed artifacts;
+internal checksums alone do not authenticate sources.
+
+**NO FITTING, SCORING, PREDICTIONS, REAL-DATA WEIGHT ADAPTER OR PARAMETER
+SELECTION.** This module never constructs B1 `InventedMatch` values
+from real records and never invokes the numerical fitter. Calendar dates do
+not certify historical pre-kickoff information availability.
+
+See [the Phase 4C2-B2A implementation and limits report](handoffs/PHASE4C2B2A_IMPLEMENTATION_REPORT.md).
+Run `python -B -m unittest tests.test_weighted_fold_boundary -v` (22
+new tests) or the complete stdlib suite
+`python -B -m unittest discover -s tests -v` (803 total).
+The B2A scope does not authorize any future fitting, tuning, B2B work,
+deployment, or PR merge.
