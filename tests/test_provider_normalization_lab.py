@@ -389,6 +389,42 @@ class MarketTests(unittest.TestCase):
                 go(fixture_record=forged)
             self.assertEqual(error.exception.code, "FORGED_FIXTURE")
 
+    def test_audit_deeply_nested_rehashed_fixture_is_coded_denial(self):
+        original = source_fixture()
+        marker = b'"assurance":"SYNTHETIC_LOCAL_UNVERIFIED"'
+        self.assertIn(marker, original.canonical_bytes)
+        deeply_nested = (
+            b"[" * 4000 + b'"x"' + b"]" * 4000,
+            b'{"x":' * 1500 + b'"x"' + b"}" * 1500,
+        )
+        for injected in deeply_nested:
+            raw = original.canonical_bytes.replace(marker, b'"assurance":' + injected)
+            self.assertLess(len(raw), lab._MAX_BYTES)
+            forged = lab.InventedFixture(
+                raw, hashlib.sha256(lab.DOMAIN + raw).hexdigest(),
+                original.fixture_id, original.kickoff_utc)
+            with self.subTest(kind=injected[:1].decode()), self.assertRaises(lab.NormalizationError) as e:
+                go(fixture_record=forged)
+            self.assertEqual(e.exception.code, "FORGED_FIXTURE")
+
+    def test_audit_fixture_encoder_recursion_is_coded_denial(self):
+        # Simulate an encoder recursion failure independent of interpreter version.
+        original = source_fixture()
+        with patch.object(lab, "_canon", side_effect=RecursionError("nested fixture")):
+            with self.assertRaises(lab.NormalizationError) as e:
+                go(fixture_record=original)
+        self.assertEqual(e.exception.code, "FORGED_FIXTURE")
+
+    def test_audit_oversized_forged_fixture_is_coded_denial(self):
+        original = source_fixture()
+        raw = original.canonical_bytes + b" " * lab._MAX_BYTES
+        forged = lab.InventedFixture(
+            raw, hashlib.sha256(lab.DOMAIN + raw).hexdigest(),
+            original.fixture_id, original.kickoff_utc)
+        with self.assertRaises(lab.NormalizationError) as e:
+            go(fixture_record=forged)
+        self.assertEqual(e.exception.code, "FORGED_FIXTURE")
+
     def test_pure_offline_module(self):
         import ast
         from pathlib import Path

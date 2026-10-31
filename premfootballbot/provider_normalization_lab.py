@@ -224,10 +224,14 @@ def _decimal(raw: Any, name: str, *, price: bool) -> Decimal:
 def _fixture_verified(fixture: InventedFixture) -> dict:
     _need(type(fixture) is InventedFixture and type(fixture.canonical_bytes) is bytes,
           "FORGED_FIXTURE", "Frozen invented fixture required")
+    _need(len(fixture.canonical_bytes) <= _MAX_BYTES,
+          "FORGED_FIXTURE", "Oversized frozen fixture")
     try:
         p = json.loads(fixture.canonical_bytes, parse_constant=_reject_nonfinite_constant,
                        parse_int=_reject_fixture_number, parse_float=_reject_fixture_number)
-    except (ValueError, UnicodeError, TypeError) as exc:
+    except (ValueError, UnicodeError, TypeError, RecursionError) as exc:
+        # A small JSON document can still have thousands of nested containers.
+        # Decoding recursion is malformed fixture input, not an uncoded runtime error.
         raise NormalizationError("FORGED_FIXTURE", "Invalid fixture bytes") from exc
     _need(type(p) is dict and set(p) == {
           "protocol", "record_kind", "assurance", "fixture_id", "league", "home",
@@ -245,7 +249,13 @@ def _fixture_verified(fixture: InventedFixture) -> dict:
           _utc(p["locally_observed_at_utc"], "locally_observed_at_utc") <
              _utc(p["kickoff_utc"], "kickoff_utc"),
           "FORGED_FIXTURE", "Fixture content is not synthetic or chronologically valid")
-    _need(type(p) is dict and _canon(p) == fixture.canonical_bytes and
+    try:
+        canonical = _canon(p)
+    except (ValueError, TypeError, OverflowError, RecursionError) as exc:
+        # Valid parsing does not prove serialization is safe; high nesting can
+        # overflow the encoder on a different Python runtime/recursion setting.
+        raise NormalizationError("FORGED_FIXTURE", "Invalid canonical fixture") from exc
+    _need(canonical == fixture.canonical_bytes and
           hashlib.sha256(DOMAIN + fixture.canonical_bytes).hexdigest() == fixture.sha256 and
           p.get("record_kind") == STATUS and p.get("assurance") == ASSURANCE and
           p.get("rights_status") == "UNKNOWN" and
