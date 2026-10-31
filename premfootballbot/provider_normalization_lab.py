@@ -146,6 +146,16 @@ def _reject_nonfinite_constant(token: str) -> None:
     raise ValueError(f"Nonfinite JSON constant: {token}")
 
 
+def _reject_fixture_number(token: str) -> None:
+    """Frozen fixture fields are strings; reject all JSON number tokens exactly.
+
+    Default json.parse_float would convert a valid number such as 1e999 to
+    float infinity. Refusing number tokens at the parser boundary prevents
+    ambient floating-point overflow before canonicalization or schema checks.
+    """
+    raise ValueError(f"Numeric JSON token prohibited in a frozen fixture: {token}")
+
+
 def _decimal_text(value: Decimal) -> str:
     """Format an exact input decimal; never call context-sensitive normalize()."""
     raw = format(value, "f")
@@ -215,7 +225,8 @@ def _fixture_verified(fixture: InventedFixture) -> dict:
     _need(type(fixture) is InventedFixture and type(fixture.canonical_bytes) is bytes,
           "FORGED_FIXTURE", "Frozen invented fixture required")
     try:
-        p = json.loads(fixture.canonical_bytes, parse_constant=_reject_nonfinite_constant)
+        p = json.loads(fixture.canonical_bytes, parse_constant=_reject_nonfinite_constant,
+                       parse_int=_reject_fixture_number, parse_float=_reject_fixture_number)
     except (ValueError, UnicodeError, TypeError) as exc:
         raise NormalizationError("FORGED_FIXTURE", "Invalid fixture bytes") from exc
     _need(type(p) is dict and set(p) == {

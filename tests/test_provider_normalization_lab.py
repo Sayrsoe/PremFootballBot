@@ -142,6 +142,24 @@ class FixtureTests(unittest.TestCase):
         with self.assertRaisesRegex(lab.NormalizationError, "INPUT_TYPE"):
             lab.normalize_fixture_set([fixture()], team_aliases=ALIAS)
 
+    def test_rehashed_fixture_numeric_json_overflow_is_coded_denial(self):
+        # A legitimate JSON numeric literal can overflow Python's default
+        # json.loads float decoder. Rehashed fixtures must still fail with
+        # our stable error code, never an uncoded json.dumps ValueError.
+        original = source_fixture()
+        for token in ("1e999", "-1e999", "1e-999", "42", "0.5"):
+            with self.subTest(token=token):
+                payload = json.loads(original.canonical_bytes)
+                payload["assurance"] = "NUMBER_TOKEN"
+                raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+                raw = raw.replace(b'"NUMBER_TOKEN"', token.encode("ascii"))
+                forged = lab.InventedFixture(
+                    raw, hashlib.sha256(lab.DOMAIN + raw).hexdigest(),
+                    original.fixture_id, original.kickoff_utc)
+                with self.assertRaises(lab.NormalizationError) as error:
+                    go(fixture_record=forged)
+                self.assertEqual(error.exception.code, "FORGED_FIXTURE")
+
     def test_forged_dataclass_rejected(self):
         rec = source_fixture()
         with self.assertRaisesRegex(lab.NormalizationError, "FORGED_FIXTURE"):
