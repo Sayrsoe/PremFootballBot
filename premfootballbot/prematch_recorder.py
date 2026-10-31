@@ -107,7 +107,7 @@ def capture_abstention(packet: pe.FrozenEvidence, *, repo_commit: str,
     _need(all(x["license_status"] != "BLOCKED" for x in sources),
           "Blocked provider inputs are not recorded")
     quotes = []
-    seen_hashes, seen_keys = set(), set()
+    seen_hashes, seen_keys, snapshot_metadata = set(), set(), {}
     for q in odds:
         _need(type(q) is oo.FrozenRecord and q.protocol == oo.PROTOCOL,
               "Only frozen odds evidence is allowed")
@@ -121,15 +121,25 @@ def capture_abstention(packet: pe.FrozenEvidence, *, repo_commit: str,
               and raw["captured_at_utc"] <= p["cutoff_utc"],
               "Odds captured after the freeze/cutoff")
         _need(raw["independent_observed_at_utc"] is None or
-              raw["independent_observed_at_utc"] <= p["cutoff_utc"],
-              "External observation claimed after cutoff")
+              (raw["independent_observed_at_utc"] <= p["capture"]["captured_at_utc"]
+               and raw["independent_observed_at_utc"] <= p["cutoff_utc"]),
+              "External observation claimed after packet capture or cutoff")
         matching = [x for x in sources if (x["source_url"], x["content_sha256"])
                     == (raw["source_url"], raw["source_content_sha256"])]
         _need(len(matching) == 1 and matching[0]["license_status"] == "CLEARED"
               and matching[0]["acquired_at_utc"] <= raw["captured_at_utc"],
               "Cleared timestamped source reference not linked to quote")
+        # One snapshot/bookmaker has one capture time and source identity.
+        # A genuinely later quote requires a different snapshot ID.
+        snapshot_key = (raw["snapshot_id"], raw["bookmaker"])
+        metadata = (raw["captured_at_utc"], raw["source_url"],
+                    raw["source_content_sha256"])
+        _need(snapshot_key not in snapshot_metadata
+              or snapshot_metadata[snapshot_key] == metadata,
+              "Inconsistent capture time or source within one snapshot")
+        snapshot_metadata[snapshot_key] = metadata
         key = (raw["snapshot_id"], raw["bookmaker"], raw["market"],
-               raw["selection"], raw["handicap_q"], raw["captured_at_utc"])
+               raw["selection"], raw["handicap_q"])
         _need(key not in seen_keys, "Repeated quote selection in one snapshot")
         seen_keys.add(key)
         seen_hashes.add(q.sha256)

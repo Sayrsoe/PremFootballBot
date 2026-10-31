@@ -153,6 +153,42 @@ class QuoteBindingTests(unittest.TestCase):
         with self.assertRaises(c0.RecorderError):
             row(invented_packet(cleared=True), odds=(q,))
 
+    def test_observation_after_packet_freeze_before_cutoff_denied(self):
+        # The packet was frozen at 11:00; 12:00 remains before tomorrow's
+        # cutoff, but its observation cannot be inside the earlier packet.
+        q = self.ok(independent_observed_at_utc="2027-01-09T12:00:00Z")
+        p = invented_packet(cleared=True)
+        with self.assertRaises(c0.RecorderError):
+            row(p, odds=(q,))
+        valid = c0.checked_capture(row(p, odds=(self.ok(),)))
+        valid["odds"][0]["independent_observed_at_utc"] = "2027-01-09T12:00:00Z"
+        with self.assertRaises(c0.RecorderError):
+            c0.checked_capture_payload(valid)
+
+    def test_same_snapshot_selection_different_capture_time_denied(self):
+        first = self.ok()
+        second = self.ok(raw_price="3", captured_at_utc="2027-01-09T10:31:00Z")
+        with self.assertRaises(c0.RecorderError):
+            row(invented_packet(cleared=True), odds=(first, second))
+        original = c0.checked_capture(row(invented_packet(cleared=True),
+                                         odds=(first,)))
+        original["odds"].append(oo.checked(second))
+        with self.assertRaises(c0.RecorderError):
+            c0.checked_capture_payload(original)
+
+    def test_same_snapshot_distinct_selection_metadata_must_match(self):
+        first = self.ok(selection="HOME")
+        changed_time = self.ok(selection="AWAY", raw_price="3",
+                               captured_at_utc="2027-01-09T10:31:00Z")
+        with self.assertRaises(c0.RecorderError):
+            row(invented_packet(cleared=True), odds=(first, changed_time))
+        changed_snapshot = self.ok(selection="AWAY", raw_price="3",
+                                   snapshot_id="INVENTED-SECOND",
+                                   captured_at_utc="2027-01-09T10:31:00Z")
+        accepted = row(invented_packet(cleared=True),
+                       odds=(first, changed_snapshot))
+        self.assertEqual(len(c0.checked_capture(accepted)["odds"]), 2)
+
     def test_quote_bound_to_unique_source_reference(self):
         p = sample()
         p["inputs"][0].update(content_sha256=hashlib.sha256(RAW).hexdigest(),

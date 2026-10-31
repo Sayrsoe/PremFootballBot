@@ -61,3 +61,13 @@ Local Python executed against the previously reviewed B1 source package and curr
 ## Independent-review handoff and owner gate
 
 Review the four-file GitHub diff (`premfootballbot/prematch_recorder.py`, `tests/test_prematch_recorder.py`, `README.md`, this report), blob/commit/tree SHA, full GitHub CI, denial tests (forecast bypass, postcutoff/mismatched/uncleared odds, source spoof, tampering, duplicate fixtures, external head mismatch, no overwrite, no output under repo), and confirmation of zero model/real-data coupling. Only a separately approved exact-head review can authorize a merge. **Draft PR only. Do not begin a genuine model prediction or automated provider ingestion.**
+
+## Independent Codex audit follow-up — 2026-10-31
+
+An independent audit of initial head `d391c9b0c9ba83592dfd1ea8a73ccf2f446044a1` identified two P2 acceptance gaps despite the initial 836-test green CI:
+1. An optional odds `independent_observed_at_utc` could occur after the packet's own capture but before its cutoff.
+2. A conflicting price could reuse the same snapshot/bookmaker/market/selection/line with a different `captured_at_utc`.
+
+Narrow repair: enforce that independent observation is no later than **both** packet capture and cutoff; remove capture time from the duplicate-selection key; require consistent capture-time and source metadata across selections in one snapshot/bookmaker; permit a genuinely distinct snapshot ID. The existing `checked_capture` and `checked_capture_payload` paths replay these validations. Three adversarial invented-data regressions cover both original probes, resealed-payload replay, cross-selection snapshot consistency and distinct-snapshot allowance.
+
+The initial clean full-suite result was **not** sufficient to establish the fixed behavior. Rerun focused tests and GitHub Python 3.10/3.12 complete offline suites on the new exact head; do not claim success until the actual results are verified. No real EPL dataset, source gate, predictions, scoring, model, credentials, live feed, deployment or merge is authorized. Keep draft and separately request owner exact-head merge approval after independent re-review.
