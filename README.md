@@ -843,3 +843,46 @@ new tests) or the complete stdlib suite
 `python -B -m unittest discover -s tests -v` (803 total).
 The B2A scope does not authorize any future fitting, tuning, B2B work,
 deployment, or PR merge.
+
+## Phase 4C2-C0: offline pre-match abstention and odds evidence recorder
+
+`premfootballbot.prematch_recorder` records **existing**, locally frozen
+`prospective_evidence.FrozenEvidence` packets with `forecast.kind=NO_FORECAST`.
+It never fits a model, produces probabilities or authorizes a current-season
+prediction. It can attach manually supplied, source-linked and explicitly cleared
+pre-match `odds_observations.FrozenRecord` objects (1X2/AH) without scoring them.
+Uncleared/late/unlinked quotes, blocked input references, changed fixtures,
+forged receipts, future-cutoff evidence, any model forecast and injected results
+are rejected. A missing or UNKNOWN licensed input can appear only as an explicit
+reference-only `NO_FORECAST`, not as predictive data.
+
+The records form a domain-separated, canonical JSON, SHA-256 hash chain and can
+be reverified against an **externally preserved head**. This is LOCAL_ONLY,
+not trusted clock, signature, provider license verification, real-time feed,
+proof of historical publication or an anti-rollback guarantee. A whole chain
+can be re-sealed unless the earlier head was independently retained. Git
+commit/tree identifiers and timestamps are caller supplied and not verified
+against GitHub or an independent clock by this module.
+
+Manual private-file CLI (no network, provider SDK, paid services or scheduling):
+
+```bash
+python -m premfootballbot.prematch_recorder record \
+  --packet /private/fixture-packet.json --out /private/ledger-v1.json \
+  --repo-commit <40-hex-sha> --repo-tree <40-hex-tree> \
+  --reason NO_AUTHORIZED_MODEL
+python -m premfootballbot.prematch_recorder verify \
+  --ledger /private/ledger-v1.json --expected-head <64-hex-record-digest>
+```
+
+Each continuation takes `--previous` and optionally `--expected-head`, writes a
+**new** output file with exclusive creation, and refuses to write inside the
+repository. Maintain your private historical files and pinned heads separately;
+never commit provider content or credentials. Rescheduled fixtures need a new
+capture; the recorder cannot independently authenticate fixture status.
+
+Read [Phase 4C2-C0 engineering handoff](handoffs/PHASE4C2C0_IMPLEMENTATION_REPORT.md).
+Test `python -B -m unittest tests.test_prematch_recorder -v` and the complete
+stdlib unittest suite. No real EPL training, automatic capture or merger is
+approved by this recorder. A separately approved model/forecast integration
+is required before genuine weekly predictions can be generated.
