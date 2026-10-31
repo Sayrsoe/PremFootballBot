@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError, replace
 import copy
 import hashlib
 import json
+from decimal import Inexact, ROUND_DOWN, ROUND_HALF_UP, localcontext
 import unittest
 from unittest.mock import patch
 
@@ -305,6 +306,70 @@ class MarketTests(unittest.TestCase):
         forged=lab.InventedFixture(encoded,hashlib.sha256(lab.DOMAIN+encoded).hexdigest(),"real:fixture",original.kickoff_utc)
         with self.assertRaisesRegex(lab.NormalizationError,"NON_SYNTHETIC_ID"):
             go(fixture_record=forged)
+
+    def test_audit_price_is_exact_independent_of_decimal_context(self):
+        p = market()
+        p["quotes"][0]["price"] = "1.01"
+        reference = go(p)
+        for prec, rounding, trap in ((1, ROUND_DOWN, False), (1, ROUND_HALF_UP, True),
+                                     (2, ROUND_DOWN, True), (28, ROUND_HALF_UP, False)):
+            with self.subTest(prec=prec, rounding=rounding, trap=trap), localcontext() as ctx:
+                ctx.prec = prec
+                ctx.rounding = rounding
+                ctx.traps[Inexact] = trap
+                result = go(p)
+            self.assertEqual(result, reference)
+            home = next(q for q in json.loads(result.canonical_bytes)["quotes"]
+                        if q["selection"] == "HOME")
+            self.assertEqual(home["decimal_price"], "1.01")
+            self.assertGreater(float(home["decimal_price"]), 1)
+
+    def test_audit_handicap_quarter_boundary_is_context_independent(self):
+        p = market("AH")
+        p["quotes"][0]["line"] = "-19.75"
+        p["quotes"][1]["line"] = "+19.75"
+        reference = go(p)
+        for prec, trap in ((1, False), (1, True), (2, True), (28, False)):
+            with self.subTest(prec=prec, trap=trap), localcontext() as ctx:
+                ctx.prec = prec
+                ctx.traps[Inexact] = trap
+                result = go(p)
+            self.assertEqual(result, reference)
+            lines = {q["selection"]: q["line_q"]
+                     for q in json.loads(result.canonical_bytes)["quotes"]}
+            self.assertEqual(lines, {"HOME": -79, "AWAY": 79})
+
+    def test_audit_decimal_price_boundaries_ignore_context(self):
+        good = market()
+        good["quotes"][0]["price"] = "9999.999999999999"
+        reference = go(good)
+        with localcontext() as ctx:
+            ctx.prec = 1
+            ctx.traps[Inexact] = True
+            self.assertEqual(go(good), reference)
+        for invalid in ("1", "1.000000000000", "10000.000000000001"):
+            p = market()
+            p["quotes"][0]["price"] = invalid
+            for prec in (1, 28):
+                with self.subTest(invalid=invalid, prec=prec), localcontext() as ctx:
+                    ctx.prec = prec
+                    ctx.traps[Inexact] = True
+                    with self.assertRaises(lab.NormalizationError) as error:
+                        go(p)
+                self.assertEqual(error.exception.code, "PRICE_FORMAT")
+
+    def test_audit_nonfinite_rehashed_fixture_denied_with_code(self):
+        original = source_fixture()
+        for value in (float("nan"), float("inf"), float("-inf")):
+            p = json.loads(original.canonical_bytes)
+            p["assurance"] = value
+            encoded = json.dumps(p, sort_keys=True, separators=(",", ":")).encode()
+            forged = lab.InventedFixture(
+                encoded, hashlib.sha256(lab.DOMAIN + encoded).hexdigest(),
+                original.fixture_id, original.kickoff_utc)
+            with self.subTest(value=str(value)), self.assertRaises(lab.NormalizationError) as error:
+                go(fixture_record=forged)
+            self.assertEqual(error.exception.code, "FORGED_FIXTURE")
 
     def test_pure_offline_module(self):
         import ast

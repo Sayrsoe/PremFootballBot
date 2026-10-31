@@ -35,3 +35,21 @@ Read live GitHub `AGENTS.md`, `docs/ENGINEERING_WORKFLOW.md`, `docs/AGENT_HANDOF
 ## Reproducible PR handoff
 
 Draft PR only, no merge. Reviewer: verify this precise base/head/tree, only the above four-file diff, previous protected module blob identity, focused and full CI logs, strict synthetic ID/source gates, no provider integration, denial tests for mapping, quote precision, cutoff, rights and result leakage. Independently review all new source and tests. Any actual fixture/odds connector, market quote sampling, training, scoring, retrospective-to-prospective promotion, and deployment require new approval. User must approve the exact reviewed head before any squash merge. GitHub branch ruleset is not yet active; manually enforced review gate remains necessary.
+
+## Independent Codex audit follow-up — 2026-11-01
+
+The independent Codex audit of original PR #20 head `b580fc485cc00497d0b69969113ebcc8256711b1` returned **REQUEST CHANGES** for two P2 failures despite successful original CI (883/883 on both versions):
+
+1. Decimal arithmetic (`normalize()`/multiplication/abs) depended on ambient thread-local precision and Inexact traps, changing invented price `1.01` to `1` and handicap `-19.75` to `-20` (`-79` to `-80` quarter units).
+2. Rehashed forged fixture JSON containing `NaN`/`Infinity`/`-Infinity` surfaced a plain `ValueError` rather than the documented coded `NormalizationError`.
+
+Remediation stays inside the existing C1-A synthetic-only scope. The price/handicap boundary and quarter-unit conversion use exact context-independent `Fraction(Decimal)` arithmetic, with decimal text formatted directly instead of calling context-dependent `normalize()`. Fixture replay rejects nonfinite JSON constants at parse time and converts them to the stable `FORGED_FIXTURE` denial. Four permanent regression methods cover low-precision/alternate rounding/Inexact traps, signed `±19.75` AH lines, exact gross price boundaries and three forged nonfinite constants. Source/map/clock/rights semantics and existing protected files are unchanged.
+
+**Review gate:** run focused tests, complete GitHub Actions Python 3.10/3.12 suites and independent adversarial audit on the new exact head. The original 883-test CI evidence is not evidence for the patched head. Draft PR only; owner must separately authorize an exact reviewed head for squash merge. No provider access, model fitting, scoring or deployment.
+
+### Remediation local validation (not an exact-repository full-suite claim)
+
+- `python -B -m unittest tests.test_provider_normalization_lab -v` in the isolated synthetic C1-A patch workspace: **48/48 passed** (the prior 44 plus four new adversarial test methods).
+- `python -B -m unittest tests.test_provider_normalization_lab tests.test_prospective_evidence tests.test_odds_evaluation -q` on a previously available **older B1-only local baseline snapshot** with the patched C1-A module/tests added: **137/137 passed**. This is **not** the complete merged C0/B2A repository; only exact-head GitHub Actions can verify full regression.
+- Original-head reproduction before repair showed `1.01` becoming `1`, `-19.75/+19.75` becoming `-80/+80` quarter units, an `Inexact` exception under precision-one trap, and a bare `ValueError` for forged nonfinite fixture JSON.
+- No genuine EPL fixture, rights-cleared provider input, market quote, historical replay, trained model, forecast or score was introduced or tested by these fixes.

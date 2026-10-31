@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 import hashlib
 import json
 import re
@@ -140,6 +141,17 @@ class InventedMarket:
     market: str
 
 
+def _reject_nonfinite_constant(token: str) -> None:
+    """JSON's NaN/Infinity extensions are never valid frozen fixture data."""
+    raise ValueError(f"Nonfinite JSON constant: {token}")
+
+
+def _decimal_text(value: Decimal) -> str:
+    """Format an exact input decimal; never call context-sensitive normalize()."""
+    raw = format(value, "f")
+    return raw.rstrip("0").rstrip(".") if "." in raw else raw
+
+
 def _seal(payload: dict) -> tuple[bytes, str]:
     raw = _canon(payload)
     return raw, hashlib.sha256(DOMAIN + raw).hexdigest()
@@ -184,10 +196,15 @@ def _decimal(raw: Any, name: str, *, price: bool) -> Decimal:
         d = Decimal(raw)
     except InvalidOperation as exc:
         raise NormalizationError("PRICE_FORMAT" if price else "HANDICAP_LINE", "Malformed decimal") from exc
+    # Fraction(Decimal) and its integer operations are independent of the
+    # caller's thread-local decimal precision, rounding and trap settings.
+    exact = Fraction(d)
     if price:
-        _need(Decimal("1") < d <= Decimal("10000"), "PRICE_FORMAT", "Gross decimal prices must exceed 1")
+        _need(Fraction(1) < exact <= Fraction(10000), "PRICE_FORMAT",
+              "Gross decimal prices must exceed 1")
     else:
-        _need(abs(d) <= 20 and (d * 4) == (d * 4).to_integral_value(),
+        quarter = exact * 4
+        _need(abs(exact) <= 20 and quarter.denominator == 1,
               "HANDICAP_LINE", "Signed quarter-goal line required within +/-20")
     if not price:
         _need(not (d == 0 and raw.startswith("-")), "HANDICAP_LINE", "Negative zero is ambiguous")
@@ -198,7 +215,7 @@ def _fixture_verified(fixture: InventedFixture) -> dict:
     _need(type(fixture) is InventedFixture and type(fixture.canonical_bytes) is bytes,
           "FORGED_FIXTURE", "Frozen invented fixture required")
     try:
-        p = json.loads(fixture.canonical_bytes)
+        p = json.loads(fixture.canonical_bytes, parse_constant=_reject_nonfinite_constant)
     except (ValueError, UnicodeError, TypeError) as exc:
         raise NormalizationError("FORGED_FIXTURE", "Invalid fixture bytes") from exc
     _need(type(p) is dict and set(p) == {
@@ -302,11 +319,11 @@ def normalize_market(raw: dict, *, fixture: InventedFixture,
         line_q = None
         if p["market"] == "AH":
             line = _decimal(quote["line"], "line", price=False)
-            line_q = int(line * 4)
+            line_q = int(Fraction(line) * 4)
         else:
             _need(quote["line"] is None, "HANDICAP_LINE", "1X2 does not carry a handicap")
         prices[selection] = {"selection": selection, "line_q": line_q,
-                             "decimal_price": format(price.normalize(), "f")}
+                             "decimal_price": _decimal_text(price)}
     _need(set(prices) == needed, "INCOMPLETE_MARKET", "Exact selection set required")
     if p["market"] == "AH":
         _need(prices["HOME"]["line_q"] == -prices["AWAY"]["line_q"],
