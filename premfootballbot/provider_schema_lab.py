@@ -100,6 +100,17 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
                               pinned_rights_head: str) -> NormalizedToyMarket:
     """Fail-closed pure transformation. The output is NEVER C0-eligible."""
     c.need(type(fixture) is f.FixtureRevision, "FIXTURE_TYPE", "Toy fixture only")
+    # Frozen dataclasses can still be forged via replace(), object construction,
+    # or deserialization. Replay every toy identity, date and digest at the trust
+    # boundary; never allow a real ID into invented normalized output.
+    f.make_fixture_revision(namespace=fixture.namespace,
+                            provider_fixture_id=fixture.provider_fixture_id,
+                            canonical_fixture_id=fixture.canonical_fixture_id,
+                            home_team_id=fixture.home_team_id,
+                            away_team_id=fixture.away_team_id,
+                            kickoff_utc=fixture.kickoff_utc,
+                            status=fixture.status, revision=fixture.revision,
+                            season=fixture.season, source_sha256=fixture.source_sha256)
     p = c.decode_invented_json(raw_bytes)
     envelope = c.verify_source_envelope(source, raw_bytes)
     market = verify_market_profile(profile)

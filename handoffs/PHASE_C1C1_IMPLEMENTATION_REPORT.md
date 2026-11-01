@@ -23,10 +23,14 @@ The C1-B research synthesis and independent architecture report were reviewed. T
 
 Development runtime: Python 3.13.5, a local **older B1 snapshot** augmented with current C1-A module/test copies. This is not the current complete GitHub `main` working tree.
 
-- Focused: `python -B -m unittest tests.test_provider_c1c1 -v`: **86/86 passed** after the final hardened version.
-- Targeted compatibility: `python -B -m unittest tests.test_provider_c1c1 tests.test_provider_normalization_lab tests.test_prospective_evidence tests.test_odds_evaluation tests.test_real_epl_isolation -q`: **244/244 passed**.
+- Focused: `python -B -m unittest tests.test_provider_c1c1 -v`: **89/89 passed** after the final hardened version.
+- Targeted compatibility: `python -B -m unittest tests.test_provider_c1c1 tests.test_provider_normalization_lab tests.test_prospective_evidence tests.test_odds_evaluation tests.test_real_epl_isolation -q`: **247/247 passed**.
 - `python -m compileall -q` over the five new Python files: **passed**.
 - Full `unittest discover -s tests -v` on that older local snapshot exceeded its allotted run duration; **no full-local-suite success is claimed**. Only exact-head GitHub Actions Python 3.10/3.12 logs may establish the current complete repo result. CI **PENDING** until post-PR verification.
+
+## Pre-review adversarial follow-up (same approved scope)
+
+Before independent review, a direct attempt to pass a dataclass with a forged `canonical_fixture_id="real:..."` through the new market laboratory exposed an unchecked in-memory fixture object boundary. The output was labeled synthetic but contained a non-toy canonical ID. `provider_schema_lab.normalize_invented_market` now replays the complete `fixture_crosswalk.make_fixture_revision` validation before reading payloads. Three permanent regressions cover forged canonical fixture ID, forged team identity and malformed source SHA. The final local test counts above include these corrections. The earlier draft-PR CI head is superseded by the repair head; fresh CI on the **updated exact tree** is required.
 
 ## Remaining limitations and independent-review challenge
 

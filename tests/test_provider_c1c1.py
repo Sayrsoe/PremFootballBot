@@ -560,6 +560,22 @@ class MarketSchemaTests(unittest.TestCase):
         obj=subject();obj["fixture"]=fixture_rev(kickoff="2026-11-11T15:00:00Z",revision="2")
         self.code(lambda:self.evaluate(obj),"FIXTURE_REVISION")
 
+    def test_forged_canonical_fixture_id_cannot_be_normalized(self):
+        context=subject()
+        context["fixture"]=replace(context["fixture"],
+                                   canonical_fixture_id="real:fixture")
+        self.code(lambda:self.evaluate(context), "NON_SYNTHETIC_ID")
+
+    def test_forged_fixture_team_id_cannot_be_normalized(self):
+        context=subject()
+        context["fixture"]=replace(context["fixture"],home_team_id="real:home")
+        self.code(lambda:self.evaluate(context), "NON_SYNTHETIC_ID")
+
+    def test_forged_fixture_source_digest_cannot_be_normalized(self):
+        context=subject()
+        context["fixture"]=replace(context["fixture"],source_sha256="not-a-sha")
+        self.code(lambda:self.evaluate(context), "INVALID_DIGEST")
+
     def test_provider_data_never_called_into_existing_models(self):
         obj=subject()
         with patch("premfootballbot.provider_normalization_lab.normalize_market",side_effect=AssertionError("C1-A called")), \
