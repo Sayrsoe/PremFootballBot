@@ -886,3 +886,46 @@ Test `python -B -m unittest tests.test_prematch_recorder -v` and the complete
 stdlib unittest suite. No real EPL training, automatic capture or merger is
 approved by this recorder. A separately approved model/forecast integration
 is required before genuine weekly predictions can be generated.
+
+## Phase C1-A: invented-only fixture and odds normalization laboratory
+
+`premfootballbot.provider_normalization_lab` is a small **pure/offline** staging
+area for contract experiments. It is **not a provider adapter** and does not
+connect to OddsPapi, football-data.org, or any bookmaker. The only accepted
+fixture, provider, bookmaker, snapshot, and outcome IDs begin with `toy:`;
+source URLs must be `https://example.invalid/...`. All data used in tests is
+invented. No model fitting, predictions, scoring, live odds, wagering, accounts,
+new dependencies, or real datasets are introduced. The module is deliberately
+**not imported by C0**, result evaluation, or any real/synthetic model.
+
+Pure functions:
+
+- `normalize_fixture(raw, team_aliases={...})` checks a scheduled invented EPL
+  fixture against an explicit team-name-to-toy-ID mapping. It refuses ambiguous,
+  duplicate or unknown aliases, non-UTC kickoff times, result labels, and false
+  source rights. `normalize_fixture_set((...), ...)` additionally catches duplicate
+  fixture IDs and kickoff/team pairs across a small synthetic batch.
+- `normalize_market(raw, fixture=frozen, outcome_map={...})` requires explicit
+  outcome mapping (never infers that outcome `1` means HOME), the same fixture,
+  regulation-90 period, and a complete 1X2 or two-sided AH market. AH lines are
+  exact signed quarter-goal units: e.g. `-0.25 -> -1`, `+0.75 -> +3`.
+  Prices must be literal **DECIMAL strings**, parsed exactly with `Decimal`
+  before serialization. Unknown, blocked, or claimed-cleared rights cannot be
+  promoted to legally cleared data: the synthetic lab outputs `UNKNOWN` only.
+  Provider ingestion, claimed bookmaker update, local acquisition, local
+  capture, and claimed independent observation are stored as **different** UTC
+  fields, with chronological and <=15-minute staleness checks.
+
+All returned values are local deterministic canonical bytes with domain-separated
+SHA-256 digests and `INVENTED_SYNTHETIC_TEST_ONLY` / `SYNTHETIC_LOCAL_UNVERIFIED`
+flags. Hashes, user-supplied aliases, quoted lines, and timestamps **are not
+independent proof of bookmaker truth, legal rights, or historical availability**.
+There is no automatic translation into `prospective_evidence`, `odds_observations`,
+or `prematch_recorder`. The future real provider integration and a genuine
+prospective evidence/forecast pathway require separate authorization, rights
+review, bookmaker side/sign verification, a fixture-ID crosswalk, and actual
+pre-kickoff source capture.
+
+Run `python -B -m unittest tests.test_provider_normalization_lab -v`, and
+`python -B -m unittest discover -s tests -v` for the complete offline suite.
+See `handoffs/PHASE_C1A_IMPLEMENTATION_REPORT.md` for the exact review gate.
