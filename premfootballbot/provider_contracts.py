@@ -182,11 +182,13 @@ class SourceEnvelope:
     acquisition_utc: str
     rights_sha256: str
     profile_sha256: str
+    fixture_binding_sha256: str
 
 
 def make_source_envelope(*, invented_bytes: bytes, provider: str, fixture_id: str,
                          request_id: str, source_url: str, acquisition_utc: str,
-                         rights_sha256: str, profile_sha256: str) -> SourceEnvelope:
+                         rights_sha256: str, profile_sha256: str,
+                         fixture_binding_sha256: str) -> SourceEnvelope:
     # Source bytes must be invented, not arbitrary real response data.
     payload = decode_invented_json(invented_bytes)
     need(payload.get("protocol") == VERSION and payload.get("assurance") == ASSURANCE,
@@ -198,6 +200,7 @@ def make_source_envelope(*, invented_bytes: bytes, provider: str, fixture_id: st
     utc(acquisition_utc, "acquisition_utc")
     digest(rights_sha256, "rights_sha256")
     digest(profile_sha256, "profile_sha256")
+    digest(fixture_binding_sha256, "fixture_binding_sha256")
     need(payload.get("provider") == provider and payload.get("fixture_id") == fixture_id,
          "SOURCE_MISMATCH", "Source identity mismatch")
     raw_digest = hashlib.sha256(invented_bytes).hexdigest()
@@ -205,10 +208,12 @@ def make_source_envelope(*, invented_bytes: bytes, provider: str, fixture_id: st
                 fixture_id=fixture_id, request_id=request_id, source_url=source_url,
                 raw_sha256=raw_digest, raw_length=str(len(invented_bytes)),
                 acquisition_utc=acquisition_utc, rights_sha256=rights_sha256,
-                profile_sha256=profile_sha256)
+                profile_sha256=profile_sha256,
+                fixture_binding_sha256=fixture_binding_sha256)
     encoded, sha = seal(info)
     return SourceEnvelope(encoded, sha, raw_digest, provider, fixture_id,
-                          acquisition_utc, rights_sha256, profile_sha256)
+                          acquisition_utc, rights_sha256, profile_sha256,
+                          fixture_binding_sha256)
 
 
 def verify_source_envelope(envelope: SourceEnvelope, invented_bytes: bytes) -> dict:
@@ -220,7 +225,7 @@ def verify_source_envelope(envelope: SourceEnvelope, invented_bytes: bytes) -> d
          "FORGED_ENVELOPE", "Envelope does not replay")
     need(set(raw) == {"protocol", "assurance", "provider", "fixture_id", "request_id",
                             "source_url", "raw_sha256", "raw_length", "acquisition_utc",
-                            "rights_sha256", "profile_sha256"},
+                            "rights_sha256", "profile_sha256", "fixture_binding_sha256"},
          "FORGED_ENVELOPE", "Envelope has unexpected fields")
     need(raw.get("protocol") == VERSION and raw.get("assurance") == ASSURANCE,
          "FORGED_ENVELOPE", "Wrong assurance")
@@ -232,16 +237,23 @@ def verify_source_envelope(envelope: SourceEnvelope, invented_bytes: bytes) -> d
     digest(raw.get("rights_sha256"), "rights_sha256")
     digest(raw.get("profile_sha256"), "profile_sha256")
     digest(raw.get("raw_sha256"), "raw_sha256")
-    need(type(raw.get("raw_length")) is str and raw["raw_length"].isascii() and
-         raw["raw_length"].isdecimal() and 1 <= int(raw["raw_length"]) <= MAX_BYTES,
-         "FORGED_ENVELOPE", "Invalid length")
-    need(type(invented_bytes) is bytes and len(invented_bytes) == int(raw["raw_length"]) and
+    digest(raw.get("fixture_binding_sha256"), "fixture_binding_sha256")
+    # Validate the untrusted length lexeme *before* int() to avoid CPython's
+    # 4,300-digit conversion ValueError escaping the structured-denial API.
+    length_text = raw.get("raw_length")
+    need(type(length_text) is str and 1 <= len(length_text) <= len(str(MAX_BYTES)) and
+         length_text.isascii() and length_text.isdecimal() and
+         length_text[0] != "0", "FORGED_ENVELOPE", "Invalid length syntax")
+    raw_length = int(length_text)
+    need(1 <= raw_length <= MAX_BYTES, "FORGED_ENVELOPE", "Invalid length")
+    need(type(invented_bytes) is bytes and len(invented_bytes) == raw_length and
          hashlib.sha256(invented_bytes).hexdigest() == raw["raw_sha256"],
          "SOURCE_MISMATCH", "Payload does not match sealed envelope")
     need(raw["provider"] == envelope.provider and raw["fixture_id"] == envelope.fixture_id and
          raw["raw_sha256"] == envelope.raw_sha256 and
          raw["acquisition_utc"] == envelope.acquisition_utc and
          raw["rights_sha256"] == envelope.rights_sha256 and
-         raw["profile_sha256"] == envelope.profile_sha256,
+         raw["profile_sha256"] == envelope.profile_sha256 and
+         raw["fixture_binding_sha256"] == envelope.fixture_binding_sha256,
          "FORGED_ENVELOPE", "Dataclass metadata differs from sealed bytes")
     return raw

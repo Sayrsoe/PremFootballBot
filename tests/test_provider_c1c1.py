@@ -88,12 +88,22 @@ def subject(*, kind="AH", payload=None, rights_chain=None):
     history=rights_chain if rights_chain is not None else (decision(),)
     obj = payload if payload is not None else market_payload(prof,kind)
     bytes_=raw_market(obj)
+    fx=fixture_rev()
+    other=fixture_rev(namespace="toy:provider2")
+    maps=tuple(f.make_team_crosswalk(namespace=ns,provider_team_id=source_team,
+                    canonical_team_id=canonical,season="2026-27",reviewer="toy:reviewer")
+               for ns in (SOURCE,"toy:provider2")
+               for source_team,canonical in (("toy:home1","toy:town"),("toy:away1","toy:albion")))
+    binding=f.make_reviewed_fixture_binding(primary=fx,corroborating=other,
+                                             team_crosswalks=maps,reviewer="toy:reviewer")
     envelope=c.make_source_envelope(invented_bytes=bytes_,provider=SOURCE,fixture_id=F_ID,
                                      request_id="toy:req1",source_url="https://example.invalid/synthetic",
                                      acquisition_utc=ACQUIRED,rights_sha256=history[-1].sha256,
-                                     profile_sha256=prof.sha256)
+                                     profile_sha256=prof.sha256,
+                                     fixture_binding_sha256=binding.sha256)
     return dict(raw_bytes=bytes_,source=envelope,profile=prof,
-                fixture=fixture_rev(),rights_chain=history,pinned_rights_head=history[-1].sha256)
+                fixture=fx,rights_chain=history,pinned_rights_head=history[-1].sha256,
+                reviewed_fixture_binding=binding,pinned_fixture_binding_sha256=binding.sha256)
 
 
 class ContractsTests(unittest.TestCase):
@@ -205,6 +215,29 @@ class ContractsTests(unittest.TestCase):
         raw,sha=c.seal(p)
         forged=replace(s["source"], canonical_bytes=raw,sha256=sha,provider=p["provider"])
         self.code(lambda:c.verify_source_envelope(forged,s["raw_bytes"]),"NON_SYNTHETIC_ID")
+
+    def test_coded_5000_digit_forged_raw_length(self):
+        context = subject()
+        info = c.decode_invented_json(context["source"].canonical_bytes)
+        info["raw_length"] = "1" * 5000
+        encoded, sha = c.seal(info)
+        self.assertLess(len(encoded), c.MAX_BYTES)
+        forged = replace(context["source"],canonical_bytes=encoded,sha256=sha)
+        self.code(lambda:c.verify_source_envelope(forged,context["raw_bytes"]),"FORGED_ENVELOPE")
+        context["source"] = forged
+        self.code(lambda:lab.normalize_invented_market(**context),"FORGED_ENVELOPE")
+
+    def test_forged_length_lexeme_and_small_boundaries(self):
+        context = subject()
+        for value in ("0", "00", "0001", "-1", "+1", "32769", "1" * 10000,
+                      "１２", "1.0", "", " 10", "99999"):
+            with self.subTest(raw_length=value):
+                info = c.decode_invented_json(context["source"].canonical_bytes)
+                info["raw_length"] = value
+                encoded, sha = c.seal(info)
+                forged = replace(context["source"],canonical_bytes=encoded,sha256=sha)
+                self.code(lambda:c.verify_source_envelope(forged,context["raw_bytes"]),
+                          "FORGED_ENVELOPE")
 
     def test_source_genuine_flag_refused(self):
         obj=market_payload();obj["assurance"]="GENUINE_EPL"
@@ -440,7 +473,9 @@ class MarketSchemaTests(unittest.TestCase):
         malicious=ctx["raw_bytes"].replace(b'"price":"1.95"',b'"price":1e999')
         self.code(lambda:lab.normalize_invented_market(malicious,source=ctx["source"],
                   profile=ctx["profile"],fixture=ctx["fixture"],
-                  rights_chain=ctx["rights_chain"],pinned_rights_head=ctx["pinned_rights_head"]),
+                  rights_chain=ctx["rights_chain"],pinned_rights_head=ctx["pinned_rights_head"],
+                  reviewed_fixture_binding=ctx["reviewed_fixture_binding"],
+                  pinned_fixture_binding_sha256=ctx["pinned_fixture_binding_sha256"]),
                   "MALFORMED_JSON")
 
     def test_quote_order_invariance(self):
@@ -498,7 +533,8 @@ class MarketSchemaTests(unittest.TestCase):
                                                request_id="toy:req1",source_url="https://example.invalid/example",
                                                acquisition_utc=data["locally_acquired_at_utc"],
                                                rights_sha256=src["pinned_rights_head"],
-                                               profile_sha256=src["profile"].sha256)
+                                               profile_sha256=src["profile"].sha256,
+                                               fixture_binding_sha256=src["pinned_fixture_binding_sha256"])
         self.code(lambda:self.evaluate(src),"TEMPORAL_LEAKAGE")
 
     def test_review_before_capture(self):
@@ -558,7 +594,7 @@ class MarketSchemaTests(unittest.TestCase):
 
     def test_rescheduled_fixture_denied(self):
         obj=subject();obj["fixture"]=fixture_rev(kickoff="2026-11-11T15:00:00Z",revision="2")
-        self.code(lambda:self.evaluate(obj),"FIXTURE_REVISION")
+        self.code(lambda:self.evaluate(obj),"FIXTURE_BINDING")
 
     def test_forged_canonical_fixture_id_cannot_be_normalized(self):
         context=subject()
@@ -575,6 +611,100 @@ class MarketSchemaTests(unittest.TestCase):
         context=subject()
         context["fixture"]=replace(context["fixture"],source_sha256="not-a-sha")
         self.code(lambda:self.evaluate(context), "INVALID_DIGEST")
+
+    def test_audit_revoked_between_acquisition_and_capture(self):
+        original = decision()
+        revoked = decision(status="BLOCKED",previous_chain=(original,),
+                           reviewed="2026-11-10T13:30:10Z",
+                           effective="2026-11-10T13:31:00Z")
+        context=subject(rights_chain=(original,revoked))
+        self.assertEqual(q.evaluate_rights(chain=(original,revoked),
+                         expected_head=revoked.sha256,subject=SOURCE,
+                         purpose="MARKET_QUALIFICATION",as_of_utc=ACQUIRED).status,
+                         "SIMULATED_ELIGIBLE_ONLY")
+        self.code(lambda:self.evaluate(context),"RIGHTS_BLOCKED")
+
+    def test_audit_expired_between_acquisition_and_capture(self):
+        context=subject(rights_chain=(decision(expires="2026-11-10T13:31:00Z"),))
+        self.code(lambda:self.evaluate(context),"RIGHTS_EXPIRED")
+
+    def test_audit_revoked_between_capture_and_review(self):
+        original=decision()
+        revoked=decision(status="BLOCKED",previous_chain=(original,),
+                         reviewed="2026-11-10T13:33:00Z",
+                         effective="2026-11-10T13:34:00Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(original,revoked))),
+                  "RIGHTS_BLOCKED")
+
+    def test_audit_revoked_during_capture_even_if_recleared_by_review(self):
+        original=decision()
+        revoked=decision(status="BLOCKED",previous_chain=(original,),
+                         reviewed="2026-11-10T13:30:10Z",
+                         effective="2026-11-10T13:31:00Z")
+        restored=decision(previous_chain=(original,revoked),
+                          reviewed="2026-11-10T13:33:00Z",
+                          effective="2026-11-10T13:34:00Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(original,revoked,restored))),
+                  "RIGHTS_BLOCKED")
+
+    def test_audit_reviewed_fixture_binding_prevents_toy_id_swap(self):
+        context=subject()
+        context["fixture"]=replace(context["fixture"],canonical_fixture_id="toy:other")
+        self.code(lambda:self.evaluate(context),"FIXTURE_BINDING")
+
+    def test_audit_reviewed_fixture_binding_prevents_orientation_swap(self):
+        context=subject()
+        fx=context["fixture"]
+        context["fixture"]=replace(fx,home_team_id=fx.away_team_id,
+                                  away_team_id=fx.home_team_id)
+        self.code(lambda:self.evaluate(context),"FIXTURE_BINDING")
+
+    def test_audit_reviewed_fixture_binding_pin_and_source_required(self):
+        context=subject()
+        context["pinned_fixture_binding_sha256"]="f"*64
+        self.code(lambda:self.evaluate(context),"FIXTURE_BINDING")
+        context=subject()
+        context["source"]=replace(context["source"],fixture_binding_sha256="f"*64)
+        self.code(lambda:self.evaluate(context),"FORGED_ENVELOPE")
+
+    def test_audit_reviewed_fixture_binding_crosswalk_replay(self):
+        context=subject()
+        binding=context["reviewed_fixture_binding"]
+        payload=c.decode_invented_json(binding.canonical_bytes)
+        payload["team_crosswalks"][0]["canonical_team_id"]="toy:forged"
+        encoded,sha=c.seal(payload)
+        context["reviewed_fixture_binding"]=replace(binding,canonical_bytes=encoded,sha256=sha)
+        # Re-sealing self-attested crosswalks must not override the separately held pin.
+        self.code(lambda:self.evaluate(context),"FIXTURE_BINDING")
+
+    def test_audit_simulated_output_binds_full_orientation_and_policy(self):
+        context=subject()
+        p=c.decode_invented_json(self.evaluate(context).canonical_bytes)
+        self.assertEqual((p["home_team_id"],p["away_team_id"]),
+                         ("toy:home1","toy:away1"))
+        self.assertEqual(p["fixture_binding_sha256"],context["pinned_fixture_binding_sha256"])
+        self.assertEqual(p["freshness_policy"],lab.TOY_FRESHNESS_POLICY)
+        self.assertEqual(p["eligibility"],"SIMULATED_ONLY_NOT_C0_OR_MODEL")
+
+    def test_audit_stale_source_observation(self):
+        self.corrupt(lambda p:p.update(source_observed_at_utc="2020-01-01T00:00:00Z"),
+                     "TEMPORAL_STALENESS")
+
+    def test_audit_stale_provider_updated_claim(self):
+        self.corrupt(lambda p:p.update(provider_updated_claim_utc="2020-01-01T00:00:00Z"),
+                     "TEMPORAL_STALENESS")
+
+    def test_audit_synthetic_freshness_900_second_boundaries(self):
+        # Review time = 13:35:00Z, so exactly 13:20:00Z is permitted.
+        data=market_payload()
+        data["source_observed_at_utc"]="2026-11-10T13:20:00Z"
+        data["provider_updated_claim_utc"]="2026-11-10T13:20:00Z"
+        self.assertEqual(self.evaluate(subject(payload=data)).assurance,c.ASSURANCE)
+        data["source_observed_at_utc"]="2026-11-10T13:19:59Z"
+        self.code(lambda:self.evaluate(subject(payload=data)),"TEMPORAL_STALENESS")
+        data["source_observed_at_utc"]="2026-11-10T13:20:00Z"
+        data["provider_updated_claim_utc"]="2026-11-10T13:19:59Z"
+        self.code(lambda:self.evaluate(subject(payload=data)),"TEMPORAL_STALENESS")
 
     def test_provider_data_never_called_into_existing_models(self):
         obj=subject()

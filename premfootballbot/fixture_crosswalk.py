@@ -1,7 +1,7 @@
 """C1-C1 toy-only, explicit fixture/team identity and schedule revision laboratory."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from . import provider_contracts as c
 
@@ -146,3 +146,78 @@ def verify_revision_history(history: tuple[FixtureRevision, ...]) -> None:
         last = int(rev.revision)
         previous = rev
         seen.add(rev.revision)
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewedFixtureBinding:
+    """Sealed, explicitly crosswalk-reviewed *invented* fixture identity.
+
+    The expected SHA must be independently pinned by the caller. Creating a new
+    binding by simply hashing forged fixture metadata does NOT grant approval.
+    """
+    canonical_bytes: bytes
+    sha256: str
+    provider: str
+    provider_fixture_id: str
+    canonical_fixture_id: str
+
+
+def make_reviewed_fixture_binding(*, primary: FixtureRevision,
+                                  corroborating: FixtureRevision,
+                                  team_crosswalks: tuple[TeamCrosswalk, ...],
+                                  reviewer: str) -> ReviewedFixtureBinding:
+    c.toy(reviewer, "binding reviewer")
+    match_fixture_revisions(primary, corroborating, team_crosswalks=team_crosswalks)
+    # Canonical ordered crosswalk rows prevent set-order variation. Replay must
+    # re-run the same two-source matching contract, not just trust a hash.
+    rows = sorted((asdict(t) for t in team_crosswalks),
+                  key=lambda t: (t["namespace"], t["provider_team_id"]))
+    content = dict(protocol=c.VERSION, assurance=c.ASSURANCE,
+                   kind="REVIEWED_FIXTURE_BINDING", reviewer=reviewer,
+                   primary=asdict(primary), corroborating=asdict(corroborating),
+                   team_crosswalks=rows)
+    raw, sha = c.seal(content)
+    return ReviewedFixtureBinding(raw, sha, primary.namespace,
+                                  primary.provider_fixture_id,
+                                  primary.canonical_fixture_id)
+
+
+def verify_reviewed_fixture_binding(binding: ReviewedFixtureBinding, *,
+                                    expected_sha256: str,
+                                    primary: FixtureRevision) -> dict:
+    c.digest(expected_sha256, "externally pinned fixture binding")
+    c.need(type(binding) is ReviewedFixtureBinding and
+           type(binding.canonical_bytes) is bytes,
+           "FIXTURE_BINDING", "Expected reviewed fixture binding")
+    decoded = c.decode_invented_json(binding.canonical_bytes)
+    c.fields(decoded, {"protocol", "assurance", "kind", "reviewer",
+                       "primary", "corroborating", "team_crosswalks"})
+    c.need(decoded["protocol"] == c.VERSION and
+           decoded["assurance"] == c.ASSURANCE and
+           decoded["kind"] == "REVIEWED_FIXTURE_BINDING" and
+           c.canonical(decoded) == binding.canonical_bytes and
+           c.seal(decoded)[1] == binding.sha256 == expected_sha256,
+           "FIXTURE_BINDING", "Unpinned or forged binding")
+    c.toy(decoded["reviewer"], "binding reviewer")
+    names = set(FixtureRevision.__dataclass_fields__)
+    c.fields(decoded["primary"], names)
+    c.fields(decoded["corroborating"], names)
+    left = make_fixture_revision(**decoded["primary"])
+    right = make_fixture_revision(**decoded["corroborating"])
+    rows = decoded["team_crosswalks"]
+    c.need(type(rows) is list and 4 <= len(rows) <= 100,
+           "FIXTURE_BINDING", "Incomplete crosswalk")
+    names = set(TeamCrosswalk.__dataclass_fields__)
+    crosswalks = []
+    for row in rows:
+        c.fields(row, names)
+        crosswalks.append(make_team_crosswalk(**row))
+    c.need(rows == sorted(rows, key=lambda t: (t["namespace"], t["provider_team_id"])),
+           "FIXTURE_BINDING", "Noncanonical crosswalk order")
+    match_fixture_revisions(left, right, team_crosswalks=tuple(crosswalks))
+    c.need(type(primary) is FixtureRevision and primary == left and
+           binding.provider == left.namespace and
+           binding.provider_fixture_id == left.provider_fixture_id and
+           binding.canonical_fixture_id == left.canonical_fixture_id,
+           "FIXTURE_BINDING", "Market fixture differs from externally reviewed identity")
+    return decoded

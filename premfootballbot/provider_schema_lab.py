@@ -6,11 +6,16 @@ here represents SIMULATED permission for toy data only, never actual licensing.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 from . import fixture_crosswalk as f
 from . import provider_contracts as c
 from . import provider_quarantine as q
+
+# Invented research-only policy, not evidence of real quote freshness.
+TOY_FRESHNESS_POLICY = "C1C1_TOY_REVIEW_900_SECONDS_V1"
+TOY_MAX_AGE = timedelta(seconds=900)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +102,9 @@ class NormalizedToyMarket:
 def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
                               profile: MarketProfile, fixture: f.FixtureRevision,
                               rights_chain: tuple[q.RightsDecision, ...],
-                              pinned_rights_head: str) -> NormalizedToyMarket:
+                              pinned_rights_head: str,
+                              reviewed_fixture_binding: f.ReviewedFixtureBinding,
+                              pinned_fixture_binding_sha256: str) -> NormalizedToyMarket:
     """Fail-closed pure transformation. The output is NEVER C0-eligible."""
     c.need(type(fixture) is f.FixtureRevision, "FIXTURE_TYPE", "Toy fixture only")
     # Frozen dataclasses can still be forged via replace(), object construction,
@@ -111,11 +118,15 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
                             kickoff_utc=fixture.kickoff_utc,
                             status=fixture.status, revision=fixture.revision,
                             season=fixture.season, source_sha256=fixture.source_sha256)
+    f.verify_reviewed_fixture_binding(reviewed_fixture_binding,
+                                      expected_sha256=pinned_fixture_binding_sha256,
+                                      primary=fixture)
     p = c.decode_invented_json(raw_bytes)
     envelope = c.verify_source_envelope(source, raw_bytes)
     market = verify_market_profile(profile)
     c.need(source.profile_sha256 == profile.sha256 and
-           source.rights_sha256 == pinned_rights_head,
+           source.rights_sha256 == pinned_rights_head and
+           source.fixture_binding_sha256 == pinned_fixture_binding_sha256,
            "SOURCE_MISMATCH", "Pinned profile or rights identity mismatch")
     c.need(fixture.status == "TIMED" and fixture.season == "2026-27",
            "FIXTURE_STATUS", "Only confirmed invented fixture revisions")
@@ -126,6 +137,8 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
            fixture.revision.isdecimal() and 1 <= int(fixture.revision) <= 999999,
            "FIXTURE_REVISION", "Invalid schedule revision")
     c.need(c.utc(fixture.kickoff_utc) is not None, "INVALID_UTC", "Missing kickoff")
+    # Acquisition clearance alone is insufficient: the same pinned decision
+    # chain must also authorize capture and final qualification/review.
     q.evaluate_rights(chain=rights_chain, expected_head=pinned_rights_head,
                       subject=source.provider, purpose="MARKET_QUALIFICATION",
                       as_of_utc=source.acquisition_utc)
@@ -160,6 +173,14 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
            "TEMPORAL_LEAKAGE", "Acquisition, capture, review, cutoff, kickoff ordering")
     c.need(times["source_observed_at_utc"] <= times["snapshot_captured_at_utc"],
            "TEMPORAL_LEAKAGE", "Source observation cannot follow capture")
+    for time_key in ("snapshot_captured_at_utc", "snapshot_reviewed_at_utc"):
+        q.evaluate_rights(chain=rights_chain, expected_head=pinned_rights_head,
+                          subject=source.provider, purpose="MARKET_QUALIFICATION",
+                          as_of_utc=p[time_key])
+    # Explicit versioned synthetic demonstration policy. Never treat the
+    # 900-second bound as an empirical real-provider freshness guarantee.
+    c.need(times["snapshot_reviewed_at_utc"] - times["source_observed_at_utc"] <=
+           TOY_MAX_AGE, "TEMPORAL_STALENESS", "Source observation too old at review")
     claims = {}
     for name in ("provider_updated_claim_utc", "bookmaker_published_claim_utc",
                  "historical_created_claim_utc"):
@@ -168,6 +189,9 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
         claims[name] = None if claim == "" else c.utc(claim, name)
         c.need(claims[name] is None or claims[name] <= times["locally_acquired_at_utc"],
                "TEMPORAL_LEAKAGE", "Provider/publication claim after acquisition")
+        if name == "provider_updated_claim_utc" and claims[name] is not None:
+            c.need(times["snapshot_reviewed_at_utc"] - claims[name] <= TOY_MAX_AGE,
+                   "TEMPORAL_STALENESS", "Provider update claim too old at review")
     rows = p["quotes"]
     expected = {"HOME", "DRAW", "AWAY"} if profile.market == "1X2" else {"HOME", "AWAY"}
     c.need(type(rows) is list and len(rows) == len(expected),
@@ -204,7 +228,11 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
     normalized = dict(protocol=c.VERSION, assurance=c.ASSURANCE,
                       eligibility="SIMULATED_ONLY_NOT_C0_OR_MODEL",
                       fixture_id=fixture.canonical_fixture_id,
+                      fixture_binding_sha256=pinned_fixture_binding_sha256,
                       fixture_revision=fixture.revision,
+                      home_team_id=fixture.home_team_id,
+                      away_team_id=fixture.away_team_id,
+                      freshness_policy=TOY_FRESHNESS_POLICY,
                       source_sha256=source.sha256, raw_sha256=source.raw_sha256,
                       rights_sha256=pinned_rights_head, profile_sha256=profile.sha256,
                       provider=profile.provider, bookmaker=profile.bookmaker,
