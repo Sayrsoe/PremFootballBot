@@ -137,11 +137,6 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
            fixture.revision.isdecimal() and 1 <= int(fixture.revision) <= 999999,
            "FIXTURE_REVISION", "Invalid schedule revision")
     c.need(c.utc(fixture.kickoff_utc) is not None, "INVALID_UTC", "Missing kickoff")
-    # Acquisition clearance alone is insufficient: the same pinned decision
-    # chain must also authorize capture and final qualification/review.
-    q.evaluate_rights(chain=rights_chain, expected_head=pinned_rights_head,
-                      subject=source.provider, purpose="MARKET_QUALIFICATION",
-                      as_of_utc=source.acquisition_utc)
     required = {"protocol", "assurance", "provider", "fixture_id", "fixture_revision",
                 "bookmaker", "market", "market_id", "period", "snapshot_id", "kickoff_utc",
                 "locally_acquired_at_utc", "snapshot_captured_at_utc", "source_observed_at_utc",
@@ -173,10 +168,28 @@ def normalize_invented_market(raw_bytes: bytes, *, source: c.SourceEnvelope,
            "TEMPORAL_LEAKAGE", "Acquisition, capture, review, cutoff, kickoff ordering")
     c.need(times["source_observed_at_utc"] <= times["snapshot_captured_at_utc"],
            "TEMPORAL_LEAKAGE", "Source observation cannot follow capture")
-    for time_key in ("snapshot_captured_at_utc", "snapshot_reviewed_at_utc"):
+    # Qualification requires UNINTERRUPTED coverage from acquisition through
+    # final review, not merely permission at three sampled instants. All status
+    # changes occur at effective_utc, and a grant stops at expires_utc. Checking
+    # both kinds of transition against the independently pinned full chain
+    # detects temporary BLOCKED, wrong-purpose and expiry gaps even when a later
+    # CLEARED amendment restores permission before capture or review. Decisions
+    # taking effect AFTER review must not invalidate a previously valid span.
+    history = q.verify_rights_chain(rights_chain, expected_head=pinned_rights_head)
+    # Datetime keys (not string ordering) are essential: an optional fractional
+    # second renders "13:30:00.100Z" lexically smaller than "13:30:00Z".
+    checkpoints = {c.utc(value): value for value in (
+        source.acquisition_utc, p["snapshot_captured_at_utc"],
+        p["snapshot_reviewed_at_utc"])}
+    for decision in history:
+        for key in ("effective_utc", "expires_utc"):
+            instant = c.utc(decision[key])
+            if times["locally_acquired_at_utc"] <= instant <= times["snapshot_reviewed_at_utc"]:
+                checkpoints[instant] = decision[key]
+    for instant in sorted(checkpoints):
         q.evaluate_rights(chain=rights_chain, expected_head=pinned_rights_head,
                           subject=source.provider, purpose="MARKET_QUALIFICATION",
-                          as_of_utc=p[time_key])
+                          as_of_utc=checkpoints[instant])
     # Explicit versioned synthetic demonstration policy. Never treat the
     # 900-second bound as an empirical real-provider freshness guarantee.
     c.need(times["snapshot_reviewed_at_utc"] - times["source_observed_at_utc"] <=

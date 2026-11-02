@@ -647,6 +647,93 @@ class MarketSchemaTests(unittest.TestCase):
         self.code(lambda:self.evaluate(subject(rights_chain=(original,revoked,restored))),
                   "RIGHTS_BLOCKED")
 
+    def test_audit_gap_blocked_then_restored_before_capture(self):
+        first=decision()
+        blocked=decision(status="BLOCKED",previous_chain=(first,),
+                         reviewed="2026-11-10T13:30:10Z",
+                         effective="2026-11-10T13:30:10Z")
+        restored=decision(previous_chain=(first,blocked),
+                          reviewed="2026-11-10T13:31:30Z",
+                          effective="2026-11-10T13:31:30Z")
+        history=(first,blocked,restored)
+        self.code(lambda:self.evaluate(subject(rights_chain=history)),"RIGHTS_BLOCKED")
+        self.code(lambda:q.evaluate_rights(chain=history,expected_head=restored.sha256,
+                  subject=SOURCE,purpose="MARKET_QUALIFICATION",
+                  as_of_utc="2026-11-10T13:30:10Z"),"RIGHTS_BLOCKED")
+
+    def test_audit_gap_blocked_then_restored_before_review(self):
+        first=decision()
+        blocked=decision(status="BLOCKED",previous_chain=(first,),
+                         reviewed="2026-11-10T13:33:00Z",
+                         effective="2026-11-10T13:33:00Z")
+        restored=decision(previous_chain=(first,blocked),
+                          reviewed="2026-11-10T13:34:00Z",
+                          effective="2026-11-10T13:34:00Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(first,blocked,restored))),
+                  "RIGHTS_BLOCKED")
+
+    def test_audit_gap_expired_then_regranted_before_capture(self):
+        first=decision(expires="2026-11-10T13:30:10Z")
+        restored=decision(previous_chain=(first,),
+                          reviewed="2026-11-10T13:31:30Z",
+                          effective="2026-11-10T13:31:30Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(first,restored))),
+                  "RIGHTS_EXPIRED")
+
+    def test_audit_gap_expired_then_regranted_before_review(self):
+        first=decision(expires="2026-11-10T13:33:00Z")
+        restored=decision(previous_chain=(first,),
+                          reviewed="2026-11-10T13:34:00Z",
+                          effective="2026-11-10T13:34:00Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(first,restored))),
+                  "RIGHTS_EXPIRED")
+
+    def test_audit_gap_wrong_purpose_then_restored(self):
+        first=decision()
+        limited=decision(previous_chain=(first,),purposes=("FIXTURE_MAPPING",),
+                         reviewed="2026-11-10T13:30:10Z",
+                         effective="2026-11-10T13:30:10Z")
+        restored=decision(previous_chain=(first,limited),
+                          reviewed="2026-11-10T13:31:30Z",
+                          effective="2026-11-10T13:31:30Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(first,limited,restored))),
+                  "RIGHTS_PURPOSE")
+
+    def test_audit_fractional_second_temporary_block_not_hidden(self):
+        first=decision()
+        blocked=decision(status="BLOCKED",previous_chain=(first,),
+                         reviewed="2026-11-10T13:30:00.100Z",
+                         effective="2026-11-10T13:30:00.100Z")
+        restored=decision(previous_chain=(first,blocked),
+                          reviewed="2026-11-10T13:30:00.200Z",
+                          effective="2026-11-10T13:30:00.200Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(first,blocked,restored))),
+                  "RIGHTS_BLOCKED")
+
+    def test_audit_fractional_second_expiry_gap_not_hidden(self):
+        first=decision(expires="2026-11-10T13:30:00.100Z")
+        restored=decision(previous_chain=(first,),
+                          reviewed="2026-11-10T13:30:00.200Z",
+                          effective="2026-11-10T13:30:00.200Z")
+        self.code(lambda:self.evaluate(subject(rights_chain=(first,restored))),
+                  "RIGHTS_EXPIRED")
+
+    def test_audit_revocation_after_review_does_not_retroactively_deny(self):
+        first=decision()
+        later=decision(status="BLOCKED",previous_chain=(first,),
+                       reviewed="2026-11-10T13:35:01Z",
+                       effective="2026-11-10T13:35:01Z")
+        context=subject(rights_chain=(first,later))
+        self.assertEqual(self.evaluate(context).assurance,c.ASSURANCE)
+
+    def test_audit_no_gap_when_grant_renewed_at_exact_expiry(self):
+        first=decision(expires="2026-11-10T13:33:00Z")
+        renewed=decision(previous_chain=(first,),
+                         reviewed="2026-11-10T13:33:00Z",
+                         effective="2026-11-10T13:33:00Z")
+        self.assertEqual(self.evaluate(subject(rights_chain=(first,renewed))).assurance,
+                         c.ASSURANCE)
+
     def test_audit_reviewed_fixture_binding_prevents_toy_id_swap(self):
         context=subject()
         context["fixture"]=replace(context["fixture"],canonical_fixture_id="toy:other")
