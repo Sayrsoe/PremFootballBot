@@ -929,3 +929,37 @@ pre-kickoff source capture.
 Run `python -B -m unittest tests.test_provider_normalization_lab -v`, and
 `python -B -m unittest discover -s tests -v` for the complete offline suite.
 See `handoffs/PHASE_C1A_IMPLEMENTATION_REPORT.md` for the exact review gate.
+
+## Offline Stats & Edge Reporter v0
+
+The reporter accepts a single invented EPL demonstration and returns plain
+text. Supplied statistics are displayed for context; they do not determine
+the rates. For example, from the repository root:
+
+```python
+from premfootballbot.edge_report import render_report
+
+print(render_report({
+    "status": "INVENTED_DEMONSTRATION", "fixture_id": "toy:example",
+    "home": "Example Town", "away": "Example Albion",
+    "home_rate": 1.4, "away_rate": 0.9,
+    "statistics": {"Home shots per match": "12 (invented)"},
+    "side": "home", "handicap": "-0.25", "decimal_odds": "2.10",
+}))
+```
+
+The handicap is signed from the selected team's perspective. Optional
+`source_reference` and `observed_at_utc` are caller supplied. If an observation
+is supplied, it must precede a supplied `kickoff_utc`; the check establishes
+ordering only. Both timestamps must be UTC text ending in `Z`.
+
+The existing Poisson engine supplies unrenormalized retained probabilities.
+The report abstains if the omitted-mass bound exceeds `1e-10`. Fair odds are
+`1 + L/W`, and net return per unit is `(odds - 1) * W - L`, where `W` and
+`L` count full outcomes plus half of the respective half outcomes. Pushes
+contribute zero net return. Fair odds are undefined when `W = 0`.
+The EV range accounts for the worst/best omitted outcomes and a floating-point
+rounding allowance; it is not a statistical confidence interval. Exact zero
+on retained mass is labeled break-even to numerical precision. A nonzero
+estimate with unresolved sign produces `INSUFFICIENT_DATA`, as does a missing
+or invalid price. Positive demonstration EV is not a real-world betting edge.
