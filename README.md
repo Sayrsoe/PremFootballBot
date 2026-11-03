@@ -963,3 +963,56 @@ rounding allowance; it is not a statistical confidence interval. Exact zero
 on retained mass is labeled break-even to numerical precision. A nonzero
 estimate with unresolved sign produces `INSUFFICIENT_DATA`, as does a missing
 or invalid price. Positive demonstration EV is not a real-world betting edge.
+
+## Offline historical EPL statistics
+
+`historical_report` replays both pinned OpenFootball seasons and summarizes one
+selected season. It takes canonical club IDs and an explicit calendar date.
+Results on or before `analysis_date - embargo_days` qualify, with a minimum
+two-day embargo. Recent windows are oldest first. Each overall, home and away
+sample has its own count, and empty performance fields are `None`.
+
+The default minimum sample is five matches. Archive and club age are flagged
+separately when their last eligible result is more than 30 days old. These are
+configurable reporting policies. A stale archive is inadequate for current-form
+analysis. Source errors suppress all statistics. Absence from the selected
+season is reported once eligible season results exist.
+
+Run this example from the repository root using the existing archive fixtures:
+
+```python
+from datetime import date, datetime
+import json
+from pathlib import Path
+
+from premfootballbot.completed_epl import SeasonInput
+from premfootballbot.historical_stats import historical_report
+from premfootballbot.openfootball_exploratory import OpenFootballSource
+
+folder = Path("tests/fixtures/completed_epl")
+archives = []
+for metadata in json.loads((folder / "SOURCES.json").read_text(encoding="utf-8")):
+    metadata["retrieved_at_utc"] = datetime.fromisoformat(metadata["retrieved_at_utc"])
+    source = OpenFootballSource(**metadata)
+    archives.append(SeasonInput((folder / (source.path[:7] + ".txt")).read_bytes(), source))
+
+report = historical_report(
+    tuple(archives), license_bytes=(folder / "LICENSE.md").read_bytes(),
+    home_team="arsenal", away_team="liverpool", season_start_year=2024,
+    analysis_date=date(2025, 4, 12),
+)
+print(report.purpose, report.evidence_status, report.historical_availability)
+print(report.source_path, report.source_commit, report.analysis_date)
+print(report.included_matches, report.exclusions, report.last_eligible_date, report.stale)
+for team in (report.home, report.away):
+    print(team.team_id, team.overall, team.home, team.away)
+    form = lambda results: " ".join("W" if r.goals_for > r.goals_against else
+                                   "L" if r.goals_for < r.goals_against else "D" for r in results)
+    print("Last 5", form(team.last_5), "Last 10", form(team.last_10))
+```
+
+The report describes real historical scores from a date-level reconstruction.
+Historical availability and kickoff UTC are unknown. Computed historical
+standings rank eligible results by earned points, goal difference and goals
+scored, with club ID breaking remaining ties for display. Official points
+deductions and tie-breaking rules are outside this calculation.
