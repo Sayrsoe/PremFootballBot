@@ -1016,3 +1016,59 @@ Historical availability and kickoff UTC are unknown. Computed historical
 standings rank eligible results by earned points, goal difference and goals
 scored, with club ID breaking remaining ties for display. Official points
 deductions and tie-breaking rules are outside this calculation.
+
+## EPL Match Notebook (local dashboard)
+
+Run from the repository root in Windows PowerShell with Python 3.12:
+
+```powershell
+py -3.12 -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install -r requirements-dashboard.txt
+& .\.venv\Scripts\python.exe -m streamlit run dashboard/app.py
+```
+
+Open [EPL Match Notebook](http://127.0.0.1:8501). The project configuration
+binds to loopback, enables CORS and XSRF protection, and disables telemetry.
+The optional Streamlit dependency is separate from the standard-library test
+and analytics workflow.
+
+1. Under **Watchlist**, add `arsenal` and `liverpool`, season start year
+   `2026`, and fixture date `2026-11-05` as an illustrative manual entry.
+   Leave the claimed kickoff blank. The entry carries
+   `MANUAL_FIXTURE_UNVERIFIED`.
+2. Open **Historical statistics**, explicitly select the **2025–26** archive,
+   and set the analysis date to 5 November 2026. Both clubs have 38 completed
+   results. The view shows `STALE_HISTORICAL_DATA`, the sample splits and
+   reconstructed results. Expand source evidence for the exact pin, cutoff,
+   latest eligible result and exclusions. Coverage comes from the completed
+   2024–25 and 2025–26 seasons. Historical availability remains unverified.
+3. Open **AH notebook** and record **Invented Example**, **HOME**, **−0.25**
+   (type ASCII `-0.25`), and **1.95**. Check **Invented demonstration quote**.
+   Leave the observation claim blank. The table shows the original decimal
+   text, exact fraction `39/20` and `TIMING_UNKNOWN`. Expand observation
+   details to see the local capture time and the empty observation claim.
+   This is a price notebook alongside retrospective statistics.
+4. Stop Streamlit with Ctrl+C, run the launch command again, and open the
+   notebook. The fixture and quote are saved in SQLite.
+
+On Windows the database defaults to
+`%LOCALAPPDATA%\PremFootballBot\notebook.sqlite3`. The fallback is
+`~/.local/share/PremFootballBot/notebook.sqlite3`. To use a separate test
+database, set `PREMFOOTBALLBOT_NOTEBOOK_PATH` to an absolute path in a private,
+non-synced local directory outside the checkout before launching. Use a local
+folder whose OS permissions match your privacy needs. For a backup, stop all
+dashboard instances and copy the database to another private local folder.
+
+Fixture corrections append a revision under the same ID. Quote corrections
+append a replacement and keep the original entry visible. Duplicate fixture
+identity returns the existing fixture. Duplicate equivalent quote submissions
+for the same revision and observation claim return the existing record. Supply
+a distinct claimed observation timestamp to record a repeat sighting of the
+same price. Timing compares the captured and claimed times to the kickoff on
+the saved revision. A local capture at or after that kickoff is unsuitable
+for pre-match research. All notebook observations use `MANUAL_UNVERIFIED`.
+
+Run the optional UI smoke test in the dashboard environment with
+`python -B -m unittest tests.test_dashboard_ui -v`. It uses a temporary
+database and runs Streamlit in process. Core notebook and archive-adapter
+tests run in the normal suite with the optional UI dependency absent.
